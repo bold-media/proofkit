@@ -11,14 +11,18 @@ export default async function LoginPage() {
   const configured = ownerConfigured()
 
   return (
-    <div className="center-screen">
-      <div style={{ width: '100%', maxWidth: 380 }}>
-        <div className="brand" style={{ justifyContent: 'center', marginBottom: 18 }}>
-          <span className="brand-dot" />
+    <div className="auth-screen">
+      <div className="auth-box">
+        <div className="auth-brand">
+          <span className="auth-mark" aria-hidden>
+            <span className="auth-pin" />
+          </span>
           Proofkit
         </div>
-        <div className="card">
-          <h1 style={{ marginTop: 0 }}>{configured ? 'Log in' : 'Set your password'}</h1>
+        <p className="auth-tagline">Share designs, collect pinned client feedback.</p>
+
+        <div className="auth-card">
+          <h1 style={{ marginTop: 0 }}>{configured ? 'Welcome back' : 'Set your password'}</h1>
           <p className="muted" style={{ marginTop: 0 }}>
             {configured
               ? 'Enter your password to manage your projects.'
@@ -26,6 +30,8 @@ export default async function LoginPage() {
           </p>
           <LoginForm configured={configured} />
         </div>
+
+        <p className="auth-foot">Clients never need an account — they just open the link you share.</p>
       </div>
     </div>
   )

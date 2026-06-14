@@ -562,6 +562,69 @@ h1 {
   padding: 24px;
 }
 
+/* Login / set-password screen */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 384px;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.auth-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.32);
+}
+
+.auth-pin {
+  width: 15px;
+  height: 15px;
+  border-radius: 50% 50% 50% 2px;
+  background: #fff;
+}
+
+.auth-tagline {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin: 11px 0 22px;
+}
+
+.auth-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px 24px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.08);
+}
+
+.auth-foot {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 18px 0 0;
+}
+
 /* Custom toggle switch */
 .toggle {
   display: inline-flex;
