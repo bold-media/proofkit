@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const res = NextResponse.redirect(new URL(`/project/${slug}`, req.url), 303)
   res.cookies.set(`pk_unlock_${slug}`, pageUnlockToken(slug) || '', {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
