@@ -2,6 +2,7 @@
   "name": "proofkit",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.2",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -19,5 +20,8 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "typescript": "6.0.3"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": ["sharp"]
   }
 }
