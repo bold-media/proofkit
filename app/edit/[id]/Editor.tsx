@@ -9,7 +9,7 @@ import PasswordInput from '../../PasswordInput'
 import { uploadDesign } from '../../upload'
 
 const STATUS: Record<CommentStatus, { label: string; color: string }> = {
-  open: { label: 'Open', color: '#dc2626' },
+  open: { label: 'Open', color: '#e5484d' },
   progress: { label: 'In progress', color: '#d97706' },
   resolved: { label: 'Resolved', color: '#16a34a' },
 }

@@ -151,6 +151,13 @@ export function createComment(c: {
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
+export function setCommentPosition(id: string, x: number, y: number): void {
+  const cx = Math.max(0, Math.min(100, x))
+  const cy = Math.max(0, Math.min(100, y))
+  // Only top-level comments carry a pin; replies have no position.
+  db.prepare('UPDATE comments SET x_pct = ?, y_pct = ? WHERE id = ? AND parent_id IS NULL').run(cx, cy, id)
+}
+
 export function setCommentStatus(id: string, status: CommentStatus): void {
   db.prepare('UPDATE comments SET status = ?, resolved = ? WHERE id = ?').run(
     status,

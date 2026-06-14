@@ -1,16 +1,23 @@
 import { NextResponse } from 'next/server'
 
-import { COMMENT_STATUSES, type CommentStatus, deleteComment, setCommentStatus } from '@/lib/data'
+import {
+  COMMENT_STATUSES,
+  type CommentStatus,
+  deleteComment,
+  setCommentPosition,
+  setCommentStatus,
+} from '@/lib/data'
 import { isOwner } from '@/lib/owner'
 
 export const runtime = 'nodejs'
 
-// Changing a comment's status (and deleting) stays owner-only; replies go
-// through the public POST /api/comments so clients can join the thread.
+// Changing a comment's status (and deleting) stays owner-only. Moving a pin is
+// allowed for anyone — like Figma, repositioning isn't destructive — so clients
+// can tidy up their own pins.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body = await req.json().catch(() => ({}))
+  const owner = await isOwner()
 
   let status: CommentStatus | undefined
   if (typeof body.status === 'string' && COMMENT_STATUSES.includes(body.status as CommentStatus)) {
@@ -19,7 +26,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Back-compat with the old resolve/reopen toggle.
     status = body.resolved ? 'resolved' : 'open'
   }
-  if (status) setCommentStatus(id, status)
+  if (status) {
+    if (!owner) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    setCommentStatus(id, status)
+  }
+
+  if (typeof body.x_pct === 'number' && typeof body.y_pct === 'number') {
+    setCommentPosition(id, body.x_pct, body.y_pct)
+  }
   return NextResponse.json({ ok: true })
 }
 

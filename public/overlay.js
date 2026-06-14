@@ -81,7 +81,7 @@
   var OWNER = !!(me && me.getAttribute('data-proof-owner'))
 
   var STATUS = {
-    open: { label: 'Open', color: '#dc2626' },
+    open: { label: 'Open', color: '#e5484d' },
     progress: { label: 'In progress', color: '#d97706' },
     resolved: { label: 'Resolved', color: '#16a34a' },
   }
@@ -200,6 +200,71 @@
       .catch(function () {})
   }
 
+  function clamp01(v) { return Math.max(0, Math.min(100, v)) }
+
+  // Figma-style link: hovering a pin or its list item lights up the other one.
+  function highlight(id, on) {
+    var pin = layer.querySelector('.pk-pin[data-id="' + id + '"]')
+    if (pin) pin.classList.toggle('pk-hi', on)
+    var item = panel.querySelector('.pk-item[data-id="' + id + '"]')
+    if (item) item.classList.toggle('pk-hi', on)
+  }
+
+  // Click a pin to open its thread. The owner can also drag it to reposition
+  // the pin; the new spot is saved. A small movement threshold keeps a normal
+  // click from being treated as a drag.
+  function attachPin(pin, c) {
+    var start = null
+    var moved = false
+    pin.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return
+      start = { x: e.clientX, y: e.clientY }
+      moved = false
+      try { pin.setPointerCapture(e.pointerId) } catch (err) {}
+      pin.style.cursor = 'grabbing'
+      e.preventDefault()
+      e.stopPropagation()
+    })
+    pin.addEventListener('pointermove', function (e) {
+      if (!start) return
+      if (!moved && Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return
+      moved = true
+      var de = document.documentElement
+      c._x = clamp01((e.pageX / de.scrollWidth) * 100)
+      c._y = clamp01((e.pageY / de.scrollHeight) * 100)
+      pin.style.left = c._x + '%'
+      pin.style.top = c._y + '%'
+      e.preventDefault()
+    })
+    pin.addEventListener('pointerup', function (e) {
+      var wasDrag = moved
+      if (start) {
+        try { pin.releasePointerCapture(e.pointerId) } catch (err) {}
+        pin.style.cursor = 'grab'
+      }
+      start = null
+      moved = false
+      if (wasDrag) {
+        c.x_pct = c._x
+        c.y_pct = c._y
+        fetch(API + '/api/comments/' + c.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ x_pct: c.x_pct, y_pct: c.y_pct }),
+        }).catch(function () {})
+        if (panelOpen) renderPanel()
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      showThread(c, pin)
+    })
+    // Swallow the click the browser fires after a drag so nothing else reacts.
+    pin.addEventListener('click', function (e) { e.stopPropagation() })
+    pin.addEventListener('mouseenter', function () { highlight(c.id, true) })
+    pin.addEventListener('mouseleave', function () { highlight(c.id, false) })
+  }
+
   function render() {
     sizeLayer()
     layer.innerHTML = ''
@@ -210,10 +275,9 @@
       pin.style.left = c.x_pct + '%'
       pin.style.top = c.y_pct + '%'
       pin.style.background = STATUS[statusOf(c)].color
-      pin.addEventListener('click', function (e) {
-        e.stopPropagation()
-        showThread(c, pin)
-      })
+      pin.style.cursor = 'grab'
+      pin.title = 'Drag to move · click to open'
+      attachPin(pin, c)
       layer.appendChild(pin)
     })
     updateBtn()
@@ -448,6 +512,8 @@
       b.addEventListener('click', function () { panelFilter = b.getAttribute('data-f'); renderPanel() })
     })
     panel.querySelectorAll('.pk-item').forEach(function (it) {
+      it.addEventListener('mouseenter', function () { highlight(it.getAttribute('data-id'), true) })
+      it.addEventListener('mouseleave', function () { highlight(it.getAttribute('data-id'), false) })
       it.addEventListener('click', function () {
         var c = byId(it.getAttribute('data-id'))
         if (!c) return
