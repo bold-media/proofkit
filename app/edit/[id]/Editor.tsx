@@ -275,7 +275,7 @@ export default function Editor({
                       comment={c}
                       number={numberById.get(c.id) || 0}
                       replies={repliesByParent[c.id] || []}
-                      defaultOpen={tops.length <= 5}
+                      defaultOpen={false}
                       onStatus={(s) => setStatus(c.id, s)}
                       onReply={(body) => reply(c.id, body)}
                       onDelete={() => removeComment(c.id)}
