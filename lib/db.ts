@@ -9,6 +9,8 @@ function init(): DatabaseSync {
   // e.g. /data/proofkit.db, so data survives redeploys.
   const dbPath = process.env.PROOFKIT_DB || path.join(process.cwd(), 'proofkit.db')
   const db = new DatabaseSync(dbPath)
+  // WAL + a busy timeout keep things smooth under concurrent access.
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;')
   db.exec(`
     CREATE TABLE IF NOT EXISTS pages (
       slug TEXT PRIMARY KEY,
@@ -37,8 +39,21 @@ function init(): DatabaseSync {
   return db
 }
 
-const db = g.__proofkitDb ?? init()
-if (process.env.NODE_ENV !== 'production') g.__proofkitDb = db
+function getDb(): DatabaseSync {
+  if (!g.__proofkitDb) g.__proofkitDb = init()
+  return g.__proofkitDb
+}
+
+// Lazy proxy: the database is opened on first real use (a request), NOT when
+// modules are imported. This keeps `next build` from opening (and locking) it.
+const db = new Proxy({} as DatabaseSync, {
+  get(_target, prop) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const real = getDb() as any
+    const value = real[prop]
+    return typeof value === 'function' ? value.bind(real) : value
+  },
+})
 
 export default db
 
