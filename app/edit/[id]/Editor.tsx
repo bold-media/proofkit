@@ -17,6 +17,17 @@ const STATUS_ORDER: CommentStatus[] = ['open', 'progress', 'resolved']
 function statusOf(c: Comment): CommentStatus {
   return (STATUS[c.status as CommentStatus] ? c.status : 'open') as CommentStatus
 }
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d ago`
+  return new Date(iso).toLocaleDateString()
+}
 
 export default function Editor({
   page,
@@ -371,6 +382,9 @@ function CommentCard({
           {number}
         </span>
         <strong style={{ fontWeight: 600 }}>{comment.author}</strong>
+        <span className="ctime" title={new Date(comment.created_at).toLocaleString()}>
+          {timeAgo(comment.created_at)}
+        </span>
         <span className="cbadge" style={{ background: STATUS[status].color }}>
           {STATUS[status].label}
         </span>
@@ -402,7 +416,9 @@ function CommentCard({
             <div className="creplies">
               {replies.map((r) => (
                 <div key={r.id} style={{ fontSize: 13 }}>
-                  <div className="creply-author">{r.author}</div>
+                  <div className="creply-author">
+                    {r.author} <span className="ctime">· {timeAgo(r.created_at)}</span>
+                  </div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div>
                 </div>
               ))}

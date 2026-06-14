@@ -27,6 +27,7 @@
 .pk-pill{display:inline-block;color:#fff;font:600 11px sans-serif;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .pk-pill.sm{font-size:10px;padding:1px 7px}
 .pk-cbody{font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word;margin-top:2px}
+.pk-time{color:#9aa1a9;font-weight:400}
 .pk-replies{margin:10px 0 2px;border-top:1px solid #eef0f3;padding-top:8px;display:flex;flex-direction:column;gap:8px;max-height:200px;overflow:auto}
 .pk-reply{font-size:13px;line-height:1.4}
 .pk-reply b{display:block;font-size:12px;color:#6b7280;margin-bottom:1px;font-weight:600}

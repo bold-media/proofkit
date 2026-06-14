@@ -400,6 +400,12 @@ h1 {
   text-overflow: ellipsis;
 }
 
+.ctime {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
 .comment-head {
   display: flex;
   align-items: center;

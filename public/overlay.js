@@ -89,6 +89,18 @@
   function statusOf(c) { return STATUS[c.status] ? c.status : 'open' }
 
   function el(tag, cls) { var n = document.createElement(tag); if (cls) n.className = cls; return n }
+  function timeAgo(iso) {
+    var ms = Date.now() - new Date(iso).getTime()
+    if (isNaN(ms)) return ''
+    var m = Math.floor(ms / 60000)
+    if (m < 1) return 'just now'
+    if (m < 60) return m + 'm ago'
+    var h = Math.floor(m / 60)
+    if (h < 24) return h + 'h ago'
+    var d = Math.floor(h / 24)
+    if (d < 30) return d + 'd ago'
+    return new Date(iso).toLocaleDateString()
+  }
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]
@@ -277,13 +289,16 @@
   function threadHtml(c) {
     var s = statusOf(c)
     var h = '<div class="pk-meta"><b>#' + numberOf(c) + '</b> · ' + escapeHtml(c.author) +
+      ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
       '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
     var rs = repliesOf(c.id)
     if (rs.length) {
       h += '<div class="pk-replies">'
       rs.forEach(function (r) {
-        h += '<div class="pk-reply"><b>' + escapeHtml(r.author) + '</b><span>' + escapeHtml(r.body) + '</span></div>'
+        h += '<div class="pk-reply"><b>' + escapeHtml(r.author) +
+          ' <span class="pk-time">· ' + timeAgo(r.created_at) + '</span></b>' +
+          '<span>' + escapeHtml(r.body) + '</span></div>'
       })
       h += '</div>'
     }
@@ -420,7 +435,8 @@
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
           '<div class="pk-item-body">' + escapeHtml(c.body) + '</div>' +
-          (nr ? '<div class="pk-item-meta">' + nr + (nr > 1 ? ' replies' : ' reply') + '</div>' : '') +
+          '<div class="pk-item-meta">' + timeAgo(c.created_at) +
+          (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
           '</button>'
       })
     }
