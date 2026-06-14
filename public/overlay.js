@@ -118,6 +118,7 @@
   var panel = el('div', 'pk-panel')
   document.body.appendChild(panel)
   var panelOpen = false
+  var panelFilter = 'all'
 
   // Core look is also set inline via the CSSOM (not subject to CSP style-src),
   // so the always-visible bar stays styled even if overlay.css was stripped by
@@ -300,16 +301,19 @@
   function showThread(c, pin) {
     closePopovers()
     var pop = el('div', 'pk-pop pk-thread')
-    pop.innerHTML = threadHtml(c)
+    fillThread(pop, c)
     var rect = pin.getBoundingClientRect()
     positionPop(pop, rect.left, rect.bottom + 8)
-    wireThread(pop, c, pin)
   }
 
-  function wireThread(pop, c, pin) {
-    pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
+  // Render the thread's contents into an existing popover and wire its buttons.
+  // Status changes and replies re-fill IN PLACE so the popover stays put — it
+  // used to reopen against the (now-detached) pin and jump to the top-left.
+  function fillThread(pop, c) {
+    pop.innerHTML = threadHtml(c)
     var savedName = localStorage.getItem(NAME_KEY) || ''
     var ta = pop.querySelector('.pk-text')
+    pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
 
     pop.querySelectorAll('.pk-st').forEach(function (sb) {
       sb.addEventListener('click', function () {
@@ -321,7 +325,7 @@
           body: JSON.stringify({ status: st }),
         }).catch(function () {})
         render()
-        showThread(c, pin) // reopen so the pill + active button refresh
+        fillThread(pop, c)
       })
     })
 
@@ -348,7 +352,7 @@
         .then(function (rep) {
           if (rep && rep.id) comments.push(rep)
           render()
-          showThread(c, pin) // reopen with the new reply shown
+          fillThread(pop, c) // refresh in place with the new reply
         })
         .catch(function () {})
     })
@@ -363,26 +367,63 @@
 
   function renderPanel() {
     var t = tops()
+    // Stable pin numbers (creation order), kept even when the list is filtered.
+    var num = {}
+    t.forEach(function (c, i) { num[c.id] = i + 1 })
+
     var h = '<div class="pk-panel-head"><b>Comments</b><button class="pk-panel-close" aria-label="Close">✕</button></div>'
     if (!t.length) {
       h += '<div class="pk-empty">No comments yet. Click “Leave feedback” to add one.</div>'
+      panel.innerHTML = h
+      panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
+      return
+    }
+
+    // Filter chips with counts, so a long list (100+) stays manageable.
+    var counts = { all: t.length, open: 0, progress: 0, resolved: 0 }
+    t.forEach(function (c) { counts[statusOf(c)]++ })
+    var chips = [
+      { k: 'all', label: 'All' },
+      { k: 'open', label: 'Open' },
+      { k: 'progress', label: 'In progress' },
+      { k: 'resolved', label: 'Resolved' },
+    ]
+    h += '<div class="pk-pfilters">'
+    chips.forEach(function (ch) {
+      h += '<button class="pk-pf' + (panelFilter === ch.k ? ' on' : '') + '" data-f="' + ch.k + '">' +
+        ch.label + ' <span>' + counts[ch.k] + '</span></button>'
+    })
+    h += '</div>'
+
+    // Open + In progress first, then resolved.
+    var list = t.slice().sort(function (a, b) {
+      return (statusOf(a) === 'resolved' ? 1 : 0) - (statusOf(b) === 'resolved' ? 1 : 0)
+    })
+    if (panelFilter !== 'all') list = list.filter(function (c) { return statusOf(c) === panelFilter })
+
+    h += '<div class="pk-panel-list">'
+    if (!list.length) {
+      h += '<div class="pk-empty">No comments with this status.</div>'
     } else {
-      h += '<div class="pk-panel-list">'
-      t.forEach(function (c, i) {
+      list.forEach(function (c) {
         var s = statusOf(c)
         var nr = repliesOf(c.id).length
         h += '<button class="pk-item" data-id="' + c.id + '">' +
           '<div class="pk-item-head"><span class="pk-dot" style="background:' + STATUS[s].color + '"></span>' +
-          '<b>#' + (i + 1) + '</b> ' + escapeHtml(c.author) +
+          '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
           '<div class="pk-item-body">' + escapeHtml(c.body) + '</div>' +
           (nr ? '<div class="pk-item-meta">' + nr + (nr > 1 ? ' replies' : ' reply') + '</div>' : '') +
           '</button>'
       })
-      h += '</div>'
     }
+    h += '</div>'
+
     panel.innerHTML = h
     panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
+    panel.querySelectorAll('.pk-pf').forEach(function (b) {
+      b.addEventListener('click', function () { panelFilter = b.getAttribute('data-f'); renderPanel() })
+    })
     panel.querySelectorAll('.pk-item').forEach(function (it) {
       it.addEventListener('click', function () {
         var c = byId(it.getAttribute('data-id'))
@@ -396,13 +437,34 @@
     })
   }
 
-  // ---- placing clicks (persistent while in comment mode) ----
+  // ---- placing interactions (persistent while in comment mode) ----
+  // While leaving feedback, the whole design is a comment canvas: a click drops
+  // a pin instead of doing what it normally would. Our own UI is excluded.
+  function placingOn(e) {
+    if (!mode) return false
+    var t = e.target
+    if (bar.contains(t) || panel.contains(t)) return false
+    if (t.closest && (t.closest('.pk-pop') || t.closest('.pk-pin'))) return false
+    return true
+  }
+  // Swallow the pointer/mouse sequence so links and SPA cards (which often
+  // navigate on pointerdown/mousedown, before click) can't fire.
+  ;['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick'].forEach(function (type) {
+    document.addEventListener(
+      type,
+      function (e) {
+        if (placingOn(e)) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      },
+      true,
+    )
+  })
   document.addEventListener(
     'click',
     function (e) {
-      if (!mode) return
-      if (bar.contains(e.target) || panel.contains(e.target)) return
-      if (e.target.closest && (e.target.closest('.pk-pop') || e.target.closest('.pk-pin'))) return
+      if (!placingOn(e)) return
       e.preventDefault()
       e.stopPropagation()
       var x = (e.pageX / document.documentElement.scrollWidth) * 100

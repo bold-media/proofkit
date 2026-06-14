@@ -37,6 +37,7 @@ export default function Editor({
   const [pwValue, setPwValue] = useState(page.viewPassword || '')
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [filter, setFilter] = useState<'all' | CommentStatus>('all')
   const frame = useRef<HTMLIFrameElement>(null)
   const isFolder = !!page.entry
 
@@ -132,10 +133,25 @@ export default function Editor({
     if (c.parent_id) (acc[c.parent_id] ||= []).push(c)
     return acc
   }, {})
-  const openCount = tops.filter((c) => {
-    const s = statusOf(c)
-    return s === 'open' || s === 'progress'
-  }).length
+  const counts = { open: 0, progress: 0, resolved: 0 } as Record<CommentStatus, number>
+  tops.forEach((c) => (counts[statusOf(c)] += 1))
+  const openCount = counts.open + counts.progress
+  // Open + In progress first so the work-to-do floats to the top of a long list.
+  const sortedTops = [...tops].sort((a, b) => {
+    const rank = (c: Comment) => (statusOf(c) === 'resolved' ? 1 : 0)
+    return rank(a) - rank(b)
+  })
+  const visibleTops =
+    filter === 'all' ? sortedTops : sortedTops.filter((c) => statusOf(c) === filter)
+  // Pin numbers follow creation order (matching the pins on the design), so they
+  // stay stable when the list is sorted or filtered.
+  const numberById = new Map(tops.map((c, i) => [c.id, i + 1]))
+  const FILTERS: { key: 'all' | CommentStatus; label: string; n: number }[] = [
+    { key: 'all', label: 'All', n: tops.length },
+    { key: 'open', label: 'Open', n: counts.open },
+    { key: 'progress', label: 'In progress', n: counts.progress },
+    { key: 'resolved', label: 'Resolved', n: counts.resolved },
+  ]
 
   return (
     <div>
@@ -234,17 +250,40 @@ export default function Editor({
               No comments yet. Share the live link and feedback shows up here.
             </p>
           ) : (
-            tops.map((c, i) => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                number={i + 1}
-                replies={repliesByParent[c.id] || []}
-                onStatus={(s) => setStatus(c.id, s)}
-                onReply={(body) => reply(c.id, body)}
-                onDelete={() => removeComment(c.id)}
-              />
-            ))
+            <>
+              <div className="comments-filter">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    className={filter === f.key ? 'cfilter on' : 'cfilter'}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                    <span className="count">{f.n}</span>
+                  </button>
+                ))}
+              </div>
+              {visibleTops.length === 0 ? (
+                <p className="muted" style={{ fontSize: 14 }}>
+                  No {filter === 'all' ? '' : filter === 'progress' ? 'in-progress ' : `${filter} `}comments.
+                </p>
+              ) : (
+                <div className="comments-scroll">
+                  {visibleTops.map((c) => (
+                    <CommentCard
+                      key={c.id}
+                      comment={c}
+                      number={numberById.get(c.id) || 0}
+                      replies={repliesByParent[c.id] || []}
+                      defaultOpen={tops.length <= 5}
+                      onStatus={(s) => setStatus(c.id, s)}
+                      onReply={(body) => reply(c.id, body)}
+                      onDelete={() => removeComment(c.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -297,6 +336,7 @@ function CommentCard({
   comment,
   number,
   replies,
+  defaultOpen,
   onStatus,
   onReply,
   onDelete,
@@ -304,10 +344,12 @@ function CommentCard({
   comment: Comment
   number: number
   replies: Comment[]
+  defaultOpen: boolean
   onStatus: (s: CommentStatus) => void
   onReply: (body: string) => void
   onDelete: () => void
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   const [text, setText] = useState('')
   const status = statusOf(comment)
   const dim = status === 'resolved'
@@ -320,8 +362,11 @@ function CommentCard({
   }
 
   return (
-    <div className={dim ? 'comment dim' : 'comment'}>
-      <div className="comment-head">
+    <div className={`comment${dim ? ' dim' : ''}${open ? ' open' : ''}`}>
+      <button className="comment-head comment-toggle" onClick={() => setOpen((o) => !o)}>
+        <span className="chev" aria-hidden>
+          {open ? '▾' : '▸'}
+        </span>
         <span className="comment-pin" style={{ background: STATUS[status].color }}>
           {number}
         </span>
@@ -329,59 +374,69 @@ function CommentCard({
         <span className="cbadge" style={{ background: STATUS[status].color }}>
           {STATUS[status].label}
         </span>
-      </div>
-      <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{comment.body}</div>
+      </button>
 
-      <div className="cstatus">
-        {STATUS_ORDER.map((s) => (
-          <button
-            key={s}
-            className={s === status ? 'cstatus-btn on' : 'cstatus-btn'}
-            style={{ ['--c' as string]: STATUS[s].color }}
-            onClick={() => onStatus(s)}
-          >
-            {STATUS[s].label}
-          </button>
-        ))}
-      </div>
-
-      {replies.length > 0 && (
-        <div className="creplies">
-          {replies.map((r) => (
-            <div key={r.id} style={{ fontSize: 13 }}>
-              <div className="creply-author">{r.author}</div>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div>
-            </div>
-          ))}
+      {!open ? (
+        <div className="comment-snippet">
+          {comment.body}
+          {replies.length > 0 && ` · ${replies.length} ${replies.length > 1 ? 'replies' : 'reply'}`}
         </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6 }}>{comment.body}</div>
+
+          <div className="cstatus">
+            {STATUS_ORDER.map((s) => (
+              <button
+                key={s}
+                className={s === status ? 'cstatus-btn on' : 'cstatus-btn'}
+                style={{ ['--c' as string]: STATUS[s].color }}
+                onClick={() => onStatus(s)}
+              >
+                {STATUS[s].label}
+              </button>
+            ))}
+          </div>
+
+          {replies.length > 0 && (
+            <div className="creplies">
+              {replies.map((r) => (
+                <div key={r.id} style={{ fontSize: 13 }}>
+                  <div className="creply-author">{r.author}</div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="reply-form">
+            <input
+              className="input"
+              placeholder="Reply…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
+            />
+            <button className="btn ghost" onClick={send} disabled={!text.trim()}>
+              Reply
+            </button>
+          </div>
+
+          <div className="row" style={{ marginTop: 8 }}>
+            <button
+              onClick={onDelete}
+              style={{ border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: 0 }}
+            >
+              Delete
+            </button>
+          </div>
+        </>
       )}
-
-      <div className="reply-form">
-        <input
-          className="input"
-          placeholder="Reply…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              send()
-            }
-          }}
-        />
-        <button className="btn ghost" onClick={send} disabled={!text.trim()}>
-          Reply
-        </button>
-      </div>
-
-      <div className="row" style={{ marginTop: 8 }}>
-        <button
-          onClick={onDelete}
-          style={{ border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: 0 }}
-        >
-          Delete
-        </button>
-      </div>
     </div>
   )
 }

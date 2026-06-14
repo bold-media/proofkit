@@ -18,6 +18,10 @@
 .pk-intro::after{content:"";position:absolute;bottom:-7px;right:34px;border:7px solid transparent;border-top-color:#1c2024;border-bottom:0}
 .pk-btn.pk-ghost{background:#fff;color:#1c2024;border:1px solid #e6e8ec}
 
+/* Hide the design export tool's debug boxes — the failed-resource "[bundle]
+   error" log and the "Unpacking…" loader — so clients see a clean design. */
+#__bundler_err,#__bundler_loading{display:none!important}
+
 /* Thread popover */
 .pk-thread{max-height:72vh;overflow:auto;width:280px}
 .pk-pill{display:inline-block;color:#fff;font:600 11px sans-serif;padding:2px 8px;border-radius:999px;vertical-align:middle}
@@ -36,6 +40,11 @@
 /* Slide-out list panel */
 .pk-panel-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;border-bottom:1px solid #eef0f3;font-size:15px;color:#1c2024}
 .pk-panel-close{border:none;background:none;font-size:16px;cursor:pointer;color:#6b7280;line-height:1;padding:4px}
+.pk-pfilters{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 2px}
+.pk-pf{border:1px solid #e6e8ec;background:#fff;color:#3a3f45;border-radius:999px;padding:4px 10px;font:600 12px sans-serif;cursor:pointer}
+.pk-pf.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
+.pk-pf span{opacity:.6;margin-left:2px}
+.pk-pf.on span{opacity:.85}
 .pk-panel-list{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
 .pk-empty{padding:24px 16px;color:#6b7280;font-size:13px;line-height:1.5}
 .pk-item{text-align:left;width:100%;background:#fff;border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;cursor:pointer;font-family:sans-serif;display:block}
