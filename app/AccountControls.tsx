@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import PasswordInput from './PasswordInput'
+
 export default function AccountControls() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -66,15 +68,7 @@ export default function AccountControls() {
         >
           <div className="card" style={{ maxWidth: 380, width: '100%' }} onClick={(e) => e.stopPropagation()}>
             <h1 style={{ fontSize: 18, marginTop: 0 }}>Change your password</h1>
-            <input
-              className="input"
-              type="password"
-              autoFocus
-              value={pw}
-              placeholder="New password"
-              onChange={(e) => setPw(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && change()}
-            />
+            <PasswordInput value={pw} onChange={setPw} placeholder="New password" autoFocus onEnter={change} />
             {msg && (
               <p style={{ fontSize: 13, margin: '8px 0 0', color: msg.includes('✓') ? 'var(--success)' : 'var(--danger)' }}>
                 {msg}

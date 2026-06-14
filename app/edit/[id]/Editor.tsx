@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import type { ClientPage, Comment } from '@/lib/data'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
+import PasswordInput from '../../PasswordInput'
 import { uploadDesign } from '../../upload'
 
 export default function Editor({
@@ -151,13 +152,12 @@ export default function Editor({
           </label>
           {requirePw && (
             <div style={{ marginTop: 12 }}>
-              <input
-                className="input"
-                type="text"
-                style={{ maxWidth: 320 }}
+              <PasswordInput
                 value={pwValue}
+                onChange={setPwValue}
                 placeholder="Password clients will enter"
-                onChange={(e) => setPwValue(e.target.value)}
+                initialVisible
+                maxWidth={320}
               />
             </div>
           )}
@@ -248,11 +248,11 @@ export default function Editor({
       </div>
 
       <label className="field-label" style={{ marginTop: 22 }}>
-        Preview — this is exactly what your client sees
+        Preview — exactly what your client sees
       </label>
       <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
-        To leave (or test) a comment, click the <strong>“💬 Leave feedback”</strong> button at the
-        bottom-right of the design below, then click anywhere on it.
+        Your client clicks the <strong>“💬 Leave feedback”</strong> button (bottom-right of the design) to
+        pin comments; they show up in the Comments panel above.
       </p>
       <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
 

@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import PasswordInput from '../PasswordInput'
+
 export default function LoginForm({ configured }: { configured: boolean }) {
   const router = useRouter()
   const [pw, setPw] = useState('')
@@ -30,14 +32,7 @@ export default function LoginForm({ configured }: { configured: boolean }) {
 
   return (
     <form onSubmit={submit}>
-      <input
-        className="input"
-        type="password"
-        autoFocus
-        value={pw}
-        placeholder="Password"
-        onChange={(e) => setPw(e.target.value)}
-      />
+      <PasswordInput value={pw} onChange={setPw} placeholder="Password" autoFocus />
       {err && (
         <p style={{ color: 'var(--danger)', fontSize: 13, margin: '8px 0 0' }}>{err}</p>
       )}

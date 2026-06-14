@@ -1,5 +1,8 @@
 (function () {
-  var slug = window.__PROOF_SLUG__
+  // Read the page id from this script tag's data attribute (works even when a
+  // site's Content-Security-Policy blocks inline scripts).
+  var me = document.currentScript || document.querySelector('script[data-proof-slug]')
+  var slug = (me && me.getAttribute('data-proof-slug')) || window.__PROOF_SLUG__
   if (!slug) return
   var API = location.origin
   var NAME_KEY = 'proofkit_name'
@@ -202,4 +205,13 @@
 
   load()
   maybeShowIntro()
+
+  // Some designs re-render and wipe injected DOM — keep our UI present.
+  setInterval(function () {
+    if (!document.body.contains(bar)) document.body.appendChild(bar)
+    if (!document.body.contains(layer)) {
+      document.body.appendChild(layer)
+      render()
+    }
+  }, 1500)
 })()
