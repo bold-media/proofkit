@@ -26,7 +26,7 @@ export default function Editor({
   const isFolder = !!page.entry
 
   useEffect(() => {
-    setPublicUrl(`${window.location.origin}/p/${page.slug}`)
+    setPublicUrl(`${window.location.origin}/project/${page.slug}`)
   }, [page.slug])
 
   // Poll for new client comments.
@@ -53,7 +53,7 @@ export default function Editor({
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
-    if (frame.current) frame.current.src = `/p/${page.slug}?t=${Date.now()}`
+    if (frame.current) frame.current.src = `/project/${page.slug}?t=${Date.now()}`
     router.refresh()
   }
 
@@ -61,7 +61,7 @@ export default function Editor({
     setUploading(true)
     try {
       await uploadDesign(page.slug, files)
-      if (frame.current) frame.current.src = `/p/${page.slug}?t=${Date.now()}`
+      if (frame.current) frame.current.src = `/project/${page.slug}?t=${Date.now()}`
       router.refresh()
     } catch (e) {
       alert((e as Error).message)
@@ -159,7 +159,7 @@ export default function Editor({
           <label className="field-label" style={{ marginTop: 16 }}>
             Preview
           </label>
-          <iframe ref={frame} className="preview-frame" src={`/p/${page.slug}`} title="Preview" />
+          <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
         </div>
 
         <div>

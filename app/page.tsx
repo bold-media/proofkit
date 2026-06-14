@@ -33,7 +33,7 @@ export default function Home() {
               <div>
                 <div style={{ fontWeight: 600 }}>{p.name}</div>
                 <div className="muted" style={{ fontSize: 13 }}>
-                  /p/{p.slug}
+                  /project/{p.slug}
                 </div>
               </div>
               <div className="row">

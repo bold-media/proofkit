@@ -40,7 +40,7 @@ server.tool(
         if (!r.ok) throw new Error(`create failed (${r.status})`)
         s = (await r.json()).slug
       }
-      const url = `${BASE}/p/${s}`
+      const url = `${BASE}/project/${s}`
       return text(
         `Published "${title}".\nLive link (send this to the client): ${url}\nEditor: ${BASE}/edit/${s}\nslug: ${s}\n\nTo update THIS page later, call publish_page again with slug "${s}".`,
       )
@@ -57,7 +57,7 @@ server.tool('list_pages', 'List all Proofkit pages with their live links and ope
     if (!pages?.length) return text('No pages yet.')
     return text(
       pages
-        .map((p) => `• ${p.name} — ${BASE}/p/${p.slug} — ${p.open} open / ${p.total} total comments (slug: ${p.slug})`)
+        .map((p) => `• ${p.name} — ${BASE}/project/${p.slug} — ${p.open} open / ${p.total} total comments (slug: ${p.slug})`)
         .join('\n'),
     )
   } catch (e) {
