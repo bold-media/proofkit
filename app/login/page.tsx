@@ -11,21 +11,21 @@ export default async function LoginPage() {
   const configured = ownerConfigured()
 
   return (
-    <div className="wrap" style={{ maxWidth: 400 }}>
-      <div className="topbar">
-        <div className="brand">
+    <div className="center-screen">
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        <div className="brand" style={{ justifyContent: 'center', marginBottom: 18 }}>
           <span className="brand-dot" />
           Proofkit
         </div>
-      </div>
-      <div className="card">
-        <h1 style={{ marginTop: 0 }}>{configured ? 'Log in' : 'Set your password'}</h1>
-        <p className="muted" style={{ marginTop: 0 }}>
-          {configured
-            ? 'Enter your password to manage your projects.'
-            : 'Create a password to protect your dashboard. Only you will be able to see your projects.'}
-        </p>
-        <LoginForm configured={configured} />
+        <div className="card">
+          <h1 style={{ marginTop: 0 }}>{configured ? 'Log in' : 'Set your password'}</h1>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {configured
+              ? 'Enter your password to manage your projects.'
+              : 'Create a password to protect your dashboard. Only you will be able to see your projects.'}
+          </p>
+          <LoginForm configured={configured} />
+        </div>
       </div>
     </div>
   )

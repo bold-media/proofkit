@@ -82,7 +82,14 @@ export default function NewPage() {
 
       {mode === 'folder' && (
         <div style={{ marginTop: 14 }}>
-          <FolderDrop busy={busy} onPick={setPicked} />
+          <FolderDrop
+            busy={busy}
+            onPick={(files, suggested) => {
+              setPicked(files)
+              // Pre-fill the name from the folder if it's still empty.
+              if (!name.trim() && suggested) setName(suggested.replace(/[-_]+/g, ' ').trim())
+            }}
+          />
         </div>
       )}
 

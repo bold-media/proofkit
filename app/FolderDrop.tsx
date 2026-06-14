@@ -35,25 +35,27 @@ export default function FolderDrop({
   onPick,
   busy,
 }: {
-  onPick: (files: PickedFile[]) => void
+  onPick: (files: PickedFile[], suggestedName?: string) => void
   busy?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [info, setInfo] = useState('')
 
-  function deliver(items: PickedFile[]) {
+  function deliver(items: PickedFile[], suggestedName?: string) {
     const files = clean(items)
     setInfo(files.length ? `${files.length} files ready` : 'No files found in there')
-    if (files.length) onPick(files)
+    if (files.length) onPick(files, suggestedName)
   }
 
   function fromInput(list: FileList) {
+    const top = (list[0]?.webkitRelativePath || '').split('/')[0]
     deliver(
       Array.from(list).map((f) => ({
         file: f,
         path: (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name,
       })),
+      top || undefined,
     )
   }
 
@@ -68,11 +70,14 @@ export default function FolderDrop({
       return
     }
     const out: PickedFile[] = []
+    let suggestedName: string | undefined
     for (const entry of entries) {
-      if (entry.isDirectory) await walk(entry, '', out)
-      else if (entry.isFile) out.push({ file: await getFile(entry), path: entry.name })
+      if (entry.isDirectory) {
+        if (!suggestedName) suggestedName = entry.name
+        await walk(entry, '', out)
+      } else if (entry.isFile) out.push({ file: await getFile(entry), path: entry.name })
     }
-    deliver(out)
+    deliver(out, suggestedName)
   }
 
   return (

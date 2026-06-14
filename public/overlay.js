@@ -20,7 +20,10 @@
     '.pk-pop button{border:none;border-radius:8px;padding:7px 13px;font:600 13px sans-serif;cursor:pointer}' +
     '.pk-send{background:#4f46e5;color:#fff}.pk-cancel{background:#f1f1f3;color:#1c2024}' +
     '.pk-meta{font-size:12px;color:#6b7280;margin-bottom:4px}' +
-    '.pk-hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#1c2024;color:#fff;font:500 13px sans-serif;padding:8px 16px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.25)}'
+    '.pk-hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#1c2024;color:#fff;font:500 13px sans-serif;padding:8px 16px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.25)}' +
+    '.pk-intro{position:fixed;bottom:76px;right:20px;z-index:2147483600;max-width:240px;background:#1c2024;color:#fff;font:400 13px/1.45 sans-serif;padding:12px 14px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.28)}' +
+    '.pk-intro b{font-weight:600}' +
+    '.pk-intro::after{content:"";position:absolute;bottom:-7px;right:34px;border:7px solid transparent;border-top-color:#1c2024;border-bottom:0}'
   var style = document.createElement('style')
   style.textContent = css
   document.head.appendChild(style)
@@ -38,8 +41,23 @@
 
   function updateBtn() {
     var open = comments.filter(function (c) { return !c.resolved }).length
-    btn.textContent = mode ? '✕ Cancel' : '💬 Comment' + (open ? ' · ' + open : '')
+    btn.textContent = mode ? '✕ Cancel' : '💬 Leave feedback' + (open ? ' · ' + open : '')
     btn.classList.toggle('active', mode)
+  }
+
+  function dismissIntro() {
+    var el = document.querySelector('.pk-intro')
+    if (el) el.remove()
+    try { localStorage.setItem('pk_intro_seen', '1') } catch (e) {}
+  }
+
+  function maybeShowIntro() {
+    try { if (localStorage.getItem('pk_intro_seen')) return } catch (e) {}
+    var tip = document.createElement('div')
+    tip.className = 'pk-intro'
+    tip.innerHTML = '<b>Leave feedback here 👇</b><br>Click this button, then click anywhere on the design to drop a comment.'
+    document.body.appendChild(tip)
+    setTimeout(dismissIntro, 9000)
   }
 
   function sizeLayer() {
@@ -93,6 +111,7 @@
 
   btn.addEventListener('click', function (e) {
     e.stopPropagation()
+    dismissIntro()
     toggleMode()
   })
 
@@ -182,4 +201,5 @@
   )
 
   load()
+  maybeShowIntro()
 })()

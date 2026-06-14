@@ -24,6 +24,8 @@ export default function Editor({
   const [uploading, setUploading] = useState(false)
   const [requirePw, setRequirePw] = useState(page.hasPassword)
   const [pwValue, setPwValue] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
   const isFolder = !!page.entry
 
@@ -98,7 +100,7 @@ export default function Editor({
   }
 
   async function deletePage() {
-    if (!confirm('Delete this page and all its comments?')) return
+    setDeleting(true)
     await fetch(`/api/pages/${page.slug}`, { method: 'DELETE' })
     router.push('/')
   }
@@ -115,7 +117,7 @@ export default function Editor({
           onChange={(e) => setName(e.target.value)}
         />
         <div className="row">
-          <button className="btn ghost" onClick={deletePage} style={{ color: 'var(--danger)' }}>
+          <button className="btn ghost" onClick={() => setConfirmDel(true)} style={{ color: 'var(--danger)' }}>
             Delete
           </button>
           <button className="btn" onClick={save}>
@@ -140,12 +142,13 @@ export default function Editor({
         </p>
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
-          <label className="row" style={{ gap: 8, cursor: 'pointer', fontSize: 14 }}>
+          <label className="toggle">
             <input
               type="checkbox"
               checked={requirePw}
               onChange={(e) => setRequirePw(e.target.checked)}
             />
+            <span className="track" />
             Require a password to view this link
           </label>
           {requirePw && (
@@ -248,6 +251,37 @@ export default function Editor({
         Preview
       </label>
       <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
+
+      {confirmDel && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(16,24,40,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: 20,
+          }}
+          onClick={() => !deleting && setConfirmDel(false)}
+        >
+          <div className="card" style={{ maxWidth: 380, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+            <h1 style={{ fontSize: 18, marginTop: 0 }}>Delete this page?</h1>
+            <p className="muted" style={{ marginTop: 0 }}>
+              This permanently removes the design and all its comments. It can&apos;t be undone.
+            </p>
+            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+              <button className="btn ghost" disabled={deleting} onClick={() => setConfirmDel(false)}>
+                Cancel
+              </button>
+              <button className="btn danger" disabled={deleting} onClick={deletePage}>
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
