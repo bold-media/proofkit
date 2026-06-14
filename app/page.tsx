@@ -19,7 +19,7 @@ export default function Home() {
 
       <h1>Your pages</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        Paste a design&apos;s HTML, get a live link, and collect pinned feedback from clients.
+        Upload a design folder (or paste HTML), get a live link, and collect pinned feedback from clients.
       </p>
 
       <NewPage />
