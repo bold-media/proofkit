@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import type { Comment, Page } from '@/lib/data'
+import type { ClientPage, Comment } from '@/lib/data'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import { uploadDesign } from '../../upload'
 
@@ -11,7 +11,7 @@ export default function Editor({
   page,
   initialComments,
 }: {
-  page: Page
+  page: ClientPage
   initialComments: Comment[]
 }) {
   const router = useRouter()
@@ -22,6 +22,8 @@ export default function Editor({
   const [copied, setCopied] = useState(false)
   const [publicUrl, setPublicUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [requirePw, setRequirePw] = useState(page.hasPassword)
+  const [pwValue, setPwValue] = useState('')
   const frame = useRef<HTMLIFrameElement>(null)
   const isFolder = !!page.entry
 
@@ -46,11 +48,16 @@ export default function Editor({
   }, [])
 
   async function save() {
+    const body: Record<string, unknown> = { name, html }
+    // Per-link client password: clear it, set a new one, or leave it untouched.
+    if (!requirePw) body.viewPassword = null
+    else if (pwValue.trim()) body.viewPassword = pwValue.trim()
     await fetch(`/api/pages/${page.slug}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, html }),
+      body: JSON.stringify(body),
     })
+    setPwValue('')
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
     if (frame.current) frame.current.src = `/project/${page.slug}?t=${Date.now()}`
@@ -131,6 +138,32 @@ export default function Editor({
         <p className="muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
           Anyone with this link can view the page and leave pinned comments — no login needed.
         </p>
+
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
+          <label className="row" style={{ gap: 8, cursor: 'pointer', fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={requirePw}
+              onChange={(e) => setRequirePw(e.target.checked)}
+            />
+            Require a password to view this link
+          </label>
+          {requirePw && (
+            <input
+              className="input"
+              type="text"
+              style={{ marginTop: 10, maxWidth: 280 }}
+              value={pwValue}
+              placeholder={page.hasPassword ? 'Set a new password (leave blank to keep current)' : 'Choose a password for clients'}
+              onChange={(e) => setPwValue(e.target.value)}
+            />
+          )}
+          <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
+            {requirePw
+              ? 'Clients must enter this password before they can see the design. Remember to share it with them. Click Save to apply.'
+              : 'The link is open to anyone who has it. Click Save after changing this.'}
+          </p>
+        </div>
       </div>
 
       <div className="editor-grid">

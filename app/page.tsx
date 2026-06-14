@@ -1,10 +1,15 @@
+import { redirect } from 'next/navigation'
+
 import { listPages } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 import NewPage from './NewPage'
 import PageList from './PageList'
+import LogoutButton from './LogoutButton'
 
 export const dynamic = 'force-dynamic'
 
-export default function Home() {
+export default async function Home() {
+  if (!(await isOwner())) redirect('/login')
   const pages = listPages()
 
   return (
@@ -14,6 +19,7 @@ export default function Home() {
           <span className="brand-dot" />
           Proofkit
         </div>
+        <LogoutButton />
       </div>
 
       <h1>Your pages</h1>

@@ -1,3 +1,6 @@
+import { cookies } from 'next/headers'
+
+import { pageHasPassword, pageUnlockToken } from '@/lib/data'
 import { contentType, readSiteFile } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
@@ -9,6 +12,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string; path: string[] }> },
 ) {
   const { slug, path } = await params
+
+  // Don't serve assets of a password-protected page until it's unlocked.
+  if (pageHasPassword(slug)) {
+    const c = await cookies()
+    if (c.get(`pk_unlock_${slug}`)?.value !== pageUnlockToken(slug)) {
+      return new Response('Locked', { status: 403 })
+    }
+  }
+
   const rel = (path || []).join('/')
   const bytes = readSiteFile(slug, rel)
   if (!bytes) {

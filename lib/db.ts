@@ -31,11 +31,16 @@ function init(): DatabaseSync {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS comments_page_idx ON comments (page_slug);
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `)
   // Add columns introduced after the first release (no-op if already present).
   const cols = (db.prepare('PRAGMA table_info(pages)').all() as { name: string }[]).map((c) => c.name)
   if (!cols.includes('entry')) db.exec('ALTER TABLE pages ADD COLUMN entry TEXT')
   if (!cols.includes('source_url')) db.exec('ALTER TABLE pages ADD COLUMN source_url TEXT')
+  if (!cols.includes('view_password')) db.exec('ALTER TABLE pages ADD COLUMN view_password TEXT')
   return db
 }
 

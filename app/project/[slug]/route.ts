@@ -1,10 +1,27 @@
-import { getPage } from '@/lib/data'
+import { cookies } from 'next/headers'
+
+import { getPage, pageHasPassword, pageUnlockToken } from '@/lib/data'
 import { readSiteFile } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
+function gateHtml(slug: string, bad: boolean): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Protected design</title>
+<style>body{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7f9;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+.box{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:28px;max-width:340px;width:90%}
+h1{font-size:18px;margin:0 0 6px}p{color:#6b7280;font-size:14px;margin:0 0 16px}
+input{width:100%;padding:10px 12px;border:1px solid #e6e8ec;border-radius:9px;font:inherit;box-sizing:border-box}
+button{width:100%;margin-top:12px;padding:11px;border:none;border-radius:9px;background:#4f46e5;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.err{color:#dc2626;font-size:13px;margin-top:8px}</style></head>
+<body><form class="box" method="post" action="/api/project/${slug}/unlock">
+<h1>This design is password-protected</h1><p>Enter the password to view it.</p>
+<input type="password" name="password" autofocus placeholder="Password" />
+${bad ? '<div class="err">Wrong password — try again.</div>' : ''}
+<button type="submit">View design</button></form></body></html>`
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const page = getPage(slug)
 
@@ -13,6 +30,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       status: 404,
       headers: { 'content-type': 'text/html; charset=utf-8' },
     })
+  }
+
+  // Per-link password gate: show a password screen until the visitor unlocks it.
+  if (pageHasPassword(slug)) {
+    const c = await cookies()
+    const unlocked = c.get(`pk_unlock_${slug}`)?.value === pageUnlockToken(slug)
+    if (!unlocked) {
+      const bad = new URL(req.url).searchParams.get('bad') === '1'
+      return new Response(gateHtml(slug, bad), {
+        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+      })
+    }
   }
 
   let html: string

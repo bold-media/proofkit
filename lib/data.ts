@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import db, { makeId } from './db'
 import { removeSite } from './sites'
 
@@ -7,8 +9,16 @@ export type Page = {
   html: string
   entry: string | null
   source_url: string | null
+  view_password: string | null
   created_at: string
   updated_at: string
+}
+
+// Page shape safe to send to the browser (no password hash).
+export type ClientPage = Omit<Page, 'view_password'> & { hasPassword: boolean }
+export function toClientPage(p: Page): ClientPage {
+  const { view_password, ...rest } = p
+  return { ...rest, hasPassword: !!view_password }
 }
 
 export type Comment = {
@@ -124,4 +134,67 @@ export function setCommentResolved(id: string, resolved: boolean): void {
 
 export function deleteComment(id: string): void {
   db.prepare('DELETE FROM comments WHERE id = ?').run(id)
+}
+
+// ---- Settings (key/value) ----
+export function getSetting(key: string): string | null {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
+  return row?.value ?? null
+}
+export function setSetting(key: string, value: string): void {
+  db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+  ).run(key, value)
+}
+
+// ---- Password hashing (scrypt) ----
+function hashPassword(pw: string): string {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(pw, salt, 32).toString('hex')
+  return `${salt}:${hash}`
+}
+function verifyPassword(pw: string, stored: string | null): boolean {
+  if (!stored || !stored.includes(':')) return false
+  const [salt, hash] = stored.split(':')
+  const test = crypto.scryptSync(pw, salt, 32).toString('hex')
+  const a = Buffer.from(hash, 'hex')
+  const b = Buffer.from(test, 'hex')
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+// ---- Owner login ----
+export function ownerConfigured(): boolean {
+  return !!getSetting('owner_pw')
+}
+export function setOwnerPassword(pw: string): void {
+  setSetting('owner_pw', hashPassword(pw))
+  setSetting('owner_session', crypto.randomBytes(24).toString('hex'))
+}
+export function verifyOwner(pw: string): boolean {
+  return verifyPassword(pw, getSetting('owner_pw'))
+}
+export function ownerSession(): string | null {
+  return getSetting('owner_session')
+}
+
+// ---- Per-page (client) view password ----
+export function setPageViewPassword(slug: string, pw: string | null): void {
+  const value = pw && pw.trim() ? hashPassword(pw.trim()) : null
+  db.prepare('UPDATE pages SET view_password = ?, updated_at = ? WHERE slug = ?').run(
+    value,
+    new Date().toISOString(),
+    slug,
+  )
+}
+export function pageHasPassword(slug: string): boolean {
+  return !!getPage(slug)?.view_password
+}
+export function verifyPageViewPassword(slug: string, pw: string): boolean {
+  return verifyPassword(pw, getPage(slug)?.view_password ?? null)
+}
+// Token stored in the visitor's unlock cookie (derived from the page's hash).
+export function pageUnlockToken(slug: string): string | null {
+  const stored = getPage(slug)?.view_password
+  if (!stored) return null
+  return crypto.createHash('sha256').update('unlock:' + stored).digest('hex')
 }

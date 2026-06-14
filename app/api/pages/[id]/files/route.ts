@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getPage, setPageEntry } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 import { appendSiteFiles, clearSite, listSiteFiles, pickEntry } from '@/lib/sites'
 
 export const runtime = 'nodejs'
@@ -9,6 +10,7 @@ export const maxDuration = 60
 // Receives one batch of a folder upload. The client sends files a few at a time
 // (with reset=true on the first batch), which is resilient on flaky networks.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   if (!getPage(id)) return NextResponse.json({ error: 'Page not found' }, { status: 404 })
 

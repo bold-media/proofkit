@@ -1,12 +1,14 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
-import { getPage, listComments } from '@/lib/data'
+import { getPage, listComments, toClientPage } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 import Editor from './Editor'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
+  if (!(await isOwner())) redirect('/login')
   const { id } = await params
   const page = getPage(id)
   if (!page) notFound()
@@ -20,7 +22,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
           Proofkit
         </Link>
       </div>
-      <Editor page={page} initialComments={comments} />
+      <Editor page={toClientPage(page)} initialComments={comments} />
     </div>
   )
 }

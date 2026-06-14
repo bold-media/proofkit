@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 
 import { createPage, listPages } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
+  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   return NextResponse.json({ pages: listPages() })
 }
 
@@ -25,6 +27,7 @@ async function fetchFromUrl(url: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
+  if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const name = String(body.name || 'Untitled')
 
