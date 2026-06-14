@@ -14,11 +14,23 @@ export type Page = {
   updated_at: string
 }
 
-// Page shape safe to send to the browser (no password hash).
-export type ClientPage = Omit<Page, 'view_password'> & { hasPassword: boolean }
+// Page shape sent to the OWNER's editor (behind login). The client view-password
+// is a shared door-code the owner must be able to see, so it's included here in
+// readable form — never sent to public client pages.
+export type ClientPage = Omit<Page, 'view_password'> & {
+  hasPassword: boolean
+  viewPassword: string | null
+}
 export function toClientPage(p: Page): ClientPage {
   const { view_password, ...rest } = p
-  return { ...rest, hasPassword: !!view_password }
+  // Old passwords were stored scrambled (salt:hash) — show those as empty so the
+  // owner just retypes a readable one.
+  const looksHashed = !!view_password && /^[0-9a-f]{32}:[0-9a-f]{64}$/.test(view_password)
+  return {
+    ...rest,
+    hasPassword: !!view_password,
+    viewPassword: looksHashed ? null : view_password,
+  }
 }
 
 export type Comment = {
@@ -178,8 +190,10 @@ export function ownerSession(): string | null {
 }
 
 // ---- Per-page (client) view password ----
+// Stored as plain text on purpose: it's a shared code the owner gives clients,
+// not a secret login, and the owner needs to look it up to share it.
 export function setPageViewPassword(slug: string, pw: string | null): void {
-  const value = pw && pw.trim() ? hashPassword(pw.trim()) : null
+  const value = pw && pw.trim() ? pw.trim() : null
   db.prepare('UPDATE pages SET view_password = ?, updated_at = ? WHERE slug = ?').run(
     value,
     new Date().toISOString(),
@@ -190,9 +204,10 @@ export function pageHasPassword(slug: string): boolean {
   return !!getPage(slug)?.view_password
 }
 export function verifyPageViewPassword(slug: string, pw: string): boolean {
-  return verifyPassword(pw, getPage(slug)?.view_password ?? null)
+  const stored = getPage(slug)?.view_password
+  return !!stored && pw === stored
 }
-// Token stored in the visitor's unlock cookie (derived from the page's hash).
+// Token stored in the visitor's unlock cookie (derived so the cookie isn't the password).
 export function pageUnlockToken(slug: string): string | null {
   const stored = getPage(slug)?.view_password
   if (!stored) return null
