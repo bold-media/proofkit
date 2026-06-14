@@ -6,8 +6,20 @@
   if (!slug) return
   var API = location.origin
   var NAME_KEY = 'proofkit_name'
+  var REACTIONS = ['👍', '❤️', '✅', '🎉']
   var comments = []
   var mode = false
+
+  // A stable per-browser id so each person toggles their own reactions.
+  var CID = (function () {
+    var id = ''
+    try { id = localStorage.getItem('pk_client_id') || '' } catch (e) {}
+    if (!id) {
+      id = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+      try { localStorage.setItem('pk_client_id', id) } catch (e) {}
+    }
+    return id
+  })()
 
   // Keep the visitor on the design. Hosted designs share this origin with the
   // Proofkit app, so a design that's a client-side-routed SPA can try to
@@ -196,10 +208,29 @@
   }
 
   function load() {
-    fetch(API + '/api/comments?page=' + encodeURIComponent(slug))
+    fetch(API + '/api/comments?page=' + encodeURIComponent(slug) + '&client=' + encodeURIComponent(CID))
       .then(function (r) { return r.json() })
       .then(function (j) { comments = j.comments || []; render() })
       .catch(function () {})
+  }
+
+  // Optimistically flip this client's reaction so the thread updates instantly.
+  function toggleLocalReaction(c, em) {
+    c.reactions = c.reactions || []
+    var found = null
+    for (var i = 0; i < c.reactions.length; i++) if (c.reactions[i].emoji === em) found = c.reactions[i]
+    if (found) {
+      if (found.mine) {
+        found.count--
+        found.mine = false
+        if (found.count <= 0) c.reactions = c.reactions.filter(function (x) { return x.emoji !== em })
+      } else {
+        found.count++
+        found.mine = true
+      }
+    } else {
+      c.reactions.push({ emoji: em, count: 1, mine: true })
+    }
   }
 
   function clamp01(v) { return Math.max(0, Math.min(100, v)) }
@@ -410,6 +441,17 @@
       ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
       '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
+
+    var rmap = {}
+    ;(c.reactions || []).forEach(function (r) { rmap[r.emoji] = r })
+    h += '<div class="pk-reactions">'
+    REACTIONS.forEach(function (em) {
+      var r = rmap[em]
+      h += '<button class="pk-react' + (r && r.mine ? ' mine' : '') + '" data-emoji="' + em + '">' +
+        em + (r && r.count ? ' <span>' + r.count + '</span>' : '') + '</button>'
+    })
+    h += '</div>'
+
     var rs = repliesOf(c.id)
     if (rs.length) {
       h += '<div class="pk-replies">'
@@ -484,6 +526,19 @@
     if (prevBtn) prevBtn.addEventListener('click', function () { if (nidx > 0) openStep(navList[nidx - 1]) })
     var nextBtn = pop.querySelector('.pk-nav-next')
     if (nextBtn) nextBtn.addEventListener('click', function () { if (nidx < navList.length - 1) openStep(navList[nidx + 1]) })
+
+    pop.querySelectorAll('.pk-react').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var em = b.getAttribute('data-emoji')
+        toggleLocalReaction(c, em)
+        fillThread(pop, c)
+        fetch(API + '/api/reactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comment_id: c.id, emoji: em, client_id: CID }),
+        }).catch(function () {})
+      })
+    })
 
     pop.querySelectorAll('.pk-st').forEach(function (sb) {
       sb.addEventListener('click', function () {

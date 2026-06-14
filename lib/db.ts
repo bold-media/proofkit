@@ -31,6 +31,14 @@ function init(): DatabaseSync {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS comments_page_idx ON comments (page_slug);
+    CREATE TABLE IF NOT EXISTS reactions (
+      comment_id TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (comment_id, emoji, client_id)
+    );
+    CREATE INDEX IF NOT EXISTS reactions_comment_idx ON reactions (comment_id);
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT

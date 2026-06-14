@@ -36,6 +36,11 @@ export function toClientPage(p: Page): ClientPage {
 export const COMMENT_STATUSES = ['open', 'progress', 'resolved'] as const
 export type CommentStatus = (typeof COMMENT_STATUSES)[number]
 
+// A small fixed palette of reactions clients/owner can add to a comment.
+export const REACTION_EMOJI = ['👍', '❤️', '✅', '🎉'] as const
+
+export type Reaction = { emoji: string; count: number; mine: boolean }
+
 export type Comment = {
   id: string
   page_slug: string
@@ -47,6 +52,7 @@ export type Comment = {
   status: CommentStatus
   parent_id: string | null
   created_at: string
+  reactions?: Reaction[]
 }
 
 export function listPages(): (Page & { open: number; total: number })[] {
@@ -123,11 +129,49 @@ export function deletePage(slug: string): void {
   removeSite(slug)
 }
 
-export function listComments(slug: string): Comment[] {
-  return db
+export function listComments(slug: string, clientId?: string): Comment[] {
+  const comments = db
     .prepare('SELECT * FROM comments WHERE page_slug = ? ORDER BY created_at ASC')
     .all(slug)
     .map((r) => plain<Comment>(r))
+
+  // Attach aggregated reactions (count per emoji, and whether this client added it).
+  const rows = db
+    .prepare(
+      `SELECT r.comment_id AS id, r.emoji AS emoji, COUNT(*) AS count,
+              SUM(CASE WHEN r.client_id = ? THEN 1 ELSE 0 END) AS mine
+         FROM reactions r JOIN comments c ON c.id = r.comment_id
+        WHERE c.page_slug = ?
+        GROUP BY r.comment_id, r.emoji`,
+    )
+    .all(clientId || '', slug) as { id: string; emoji: string; count: number; mine: number }[]
+  if (rows.length) {
+    const byComment: Record<string, Reaction[]> = {}
+    for (const r of rows) {
+      ;(byComment[r.id] ||= []).push({ emoji: r.emoji, count: r.count, mine: r.mine > 0 })
+    }
+    for (const c of comments) if (byComment[c.id]) c.reactions = byComment[c.id]
+  }
+  return comments
+}
+
+// Toggle a reaction for a client. Returns true if it was added, false if removed.
+export function toggleReaction(commentId: string, emoji: string, clientId: string): boolean {
+  const exists = db
+    .prepare('SELECT 1 FROM reactions WHERE comment_id = ? AND emoji = ? AND client_id = ?')
+    .get(commentId, emoji, clientId)
+  if (exists) {
+    db.prepare('DELETE FROM reactions WHERE comment_id = ? AND emoji = ? AND client_id = ?').run(
+      commentId,
+      emoji,
+      clientId,
+    )
+    return false
+  }
+  db.prepare(
+    'INSERT INTO reactions (comment_id, emoji, client_id, created_at) VALUES (?, ?, ?, ?)',
+  ).run(commentId, emoji, clientId, new Date().toISOString())
+  return true
 }
 
 export function getComment(id: string): Comment | undefined {
@@ -167,7 +211,10 @@ export function setCommentStatus(id: string, status: CommentStatus): void {
 }
 
 export function deleteComment(id: string): void {
-  // Deleting a top-level comment removes its replies too.
+  // Deleting a top-level comment removes its replies and all their reactions.
+  db.prepare(
+    'DELETE FROM reactions WHERE comment_id = ? OR comment_id IN (SELECT id FROM comments WHERE parent_id = ?)',
+  ).run(id, id)
   db.prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?').run(id, id)
 }
 

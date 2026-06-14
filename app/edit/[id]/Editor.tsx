@@ -3,10 +3,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { REACTION_EMOJI } from '@/lib/data'
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
 import { uploadDesign } from '../../upload'
+
+function clientId(): string {
+  if (typeof window === 'undefined') return ''
+  let id = ''
+  try {
+    id = localStorage.getItem('pk_client_id') || ''
+  } catch {
+    /* ignore */
+  }
+  if (!id) {
+    id = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+    try {
+      localStorage.setItem('pk_client_id', id)
+    } catch {
+      /* ignore */
+    }
+  }
+  return id
+}
 
 const STATUS: Record<CommentStatus, { label: string; color: string }> = {
   open: { label: 'Open', color: '#e5484d' },
@@ -58,12 +78,40 @@ export default function Editor({
 
   async function loadComments() {
     try {
-      const res = await fetch(`/api/comments?page=${page.slug}`)
+      const res = await fetch(`/api/comments?page=${page.slug}&client=${encodeURIComponent(clientId())}`)
       const json = await res.json()
       setComments(json.comments || [])
     } catch {
       /* ignore */
     }
+  }
+
+  function react(id: string, emoji: string) {
+    // Optimistic toggle of this browser's reaction; the POST + SSE reconcile it.
+    setComments((cs) =>
+      cs.map((c) => {
+        if (c.id !== id) return c
+        const reactions = [...(c.reactions || [])]
+        const i = reactions.findIndex((r) => r.emoji === emoji)
+        if (i >= 0) {
+          const r = reactions[i]
+          if (r.mine) {
+            if (r.count <= 1) reactions.splice(i, 1)
+            else reactions[i] = { ...r, count: r.count - 1, mine: false }
+          } else {
+            reactions[i] = { ...r, count: r.count + 1, mine: true }
+          }
+        } else {
+          reactions.push({ emoji, count: 1, mine: true })
+        }
+        return { ...c, reactions }
+      }),
+    )
+    fetch('/api/reactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment_id: id, emoji, client_id: clientId() }),
+    }).catch(() => {})
   }
   // Live updates via SSE — new client feedback shows up instantly. A slow poll
   // stays as a safety net (and the sole path if EventSource isn't available).
@@ -301,6 +349,7 @@ export default function Editor({
                       defaultOpen={false}
                       onStatus={(s) => setStatus(c.id, s)}
                       onReply={(body) => reply(c.id, body)}
+                      onReact={(emoji) => react(c.id, emoji)}
                       onDelete={() => removeComment(c.id)}
                     />
                   ))}
@@ -362,6 +411,7 @@ function CommentCard({
   defaultOpen,
   onStatus,
   onReply,
+  onReact,
   onDelete,
 }: {
   comment: Comment
@@ -370,6 +420,7 @@ function CommentCard({
   defaultOpen: boolean
   onStatus: (s: CommentStatus) => void
   onReply: (body: string) => void
+  onReact: (emoji: string) => void
   onDelete: () => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -410,6 +461,22 @@ function CommentCard({
       ) : (
         <>
           <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6 }}>{comment.body}</div>
+
+          <div className="creactions">
+            {REACTION_EMOJI.map((em) => {
+              const r = (comment.reactions || []).find((x) => x.emoji === em)
+              return (
+                <button
+                  key={em}
+                  className={r?.mine ? 'creact mine' : 'creact'}
+                  onClick={() => onReact(em)}
+                >
+                  {em}
+                  {r?.count ? <span>{r.count}</span> : null}
+                </button>
+              )
+            })}
+          </div>
 
           <div className="cstatus">
             {STATUS_ORDER.map((s) => (

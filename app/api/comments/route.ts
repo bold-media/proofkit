@@ -4,9 +4,11 @@ import { createComment, getComment, getPage, listComments } from '@/lib/data'
 import { emitCommentChange } from '@/lib/events'
 
 export async function GET(req: Request) {
-  const slug = new URL(req.url).searchParams.get('page')
+  const url = new URL(req.url)
+  const slug = url.searchParams.get('page')
   if (!slug) return NextResponse.json({ comments: [] })
-  return NextResponse.json({ comments: listComments(slug) })
+  const client = url.searchParams.get('client') || undefined
+  return NextResponse.json({ comments: listComments(slug, client) })
 }
 
 // Public endpoint — clients (and the owner) post feedback and replies here.

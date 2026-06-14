@@ -446,6 +446,40 @@ h1 {
   margin-left: auto;
 }
 
+.creactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.creact {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.creact span {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.creact.mine {
+  background: var(--accent-soft);
+  border-color: #c7ccff;
+}
+
+.creact.mine span {
+  color: var(--accent);
+}
+
 .cstatus {
   display: flex;
   flex-wrap: wrap;
