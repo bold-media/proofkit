@@ -132,6 +132,7 @@
   var panelOpen = false
   var panelFilter = 'all'
   var showResolved = false // resolved pins are hidden on the design until toggled on
+  var currentId = null // the comment whose thread is open (for prev/next stepping)
 
   // Core look is also set inline via the CSSOM (not subject to CSP style-src),
   // so the always-visible bar stays styled even if overlay.css was stripped by
@@ -394,7 +395,18 @@
   // ---- thread popover (comment + replies + reply box + owner controls) ----
   function threadHtml(c) {
     var s = statusOf(c)
-    var h = '<div class="pk-meta"><b>#' + numberOf(c) + '</b> · ' + escapeHtml(c.author) +
+    var list = visibleTops()
+    var idx = -1
+    for (var i = 0; i < list.length; i++) if (list[i].id === c.id) idx = i
+    var h = ''
+    if (list.length > 1 && idx !== -1) {
+      h += '<div class="pk-thread-nav">' +
+        '<button class="pk-nav-prev"' + (idx <= 0 ? ' disabled' : '') + ' aria-label="Previous comment">‹</button>' +
+        '<span class="pk-nav-count">' + (idx + 1) + ' / ' + list.length + '</span>' +
+        '<button class="pk-nav-next"' + (idx >= list.length - 1 ? ' disabled' : '') + ' aria-label="Next comment">›</button>' +
+        '</div>'
+    }
+    h += '<div class="pk-meta"><b>#' + numberOf(c) + '</b> · ' + escapeHtml(c.author) +
       ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
       '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
@@ -429,10 +441,31 @@
   function showThread(c, pin) {
     closePopovers()
     hidePreview()
+    currentId = c.id
     var pop = el('div', 'pk-pop pk-thread')
     fillThread(pop, c)
     var rect = pin.getBoundingClientRect()
     positionPop(pop, rect.left, rect.bottom + 8)
+  }
+
+  // ---- walk-through stepper ----
+  function visibleTops() {
+    return tops().filter(function (c) { return showResolved || statusOf(c) !== 'resolved' })
+  }
+  function openStep(c) {
+    var pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
+    if (!pin) return
+    try { pin.scrollIntoView({ block: 'center', inline: 'center' }) } catch (e) {}
+    showThread(c, pin)
+  }
+  function step(dir) {
+    var list = visibleTops()
+    if (!list.length) return
+    var idx = -1
+    for (var i = 0; i < list.length; i++) if (list[i].id === currentId) idx = i
+    var ni = idx === -1 ? (dir > 0 ? 0 : list.length - 1) : idx + dir
+    if (ni < 0 || ni >= list.length) return
+    openStep(list[ni])
   }
 
   // Render the thread's contents into an existing popover and wire its buttons.
@@ -443,6 +476,14 @@
     var savedName = localStorage.getItem(NAME_KEY) || ''
     var ta = pop.querySelector('.pk-text')
     pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
+
+    var navList = visibleTops()
+    var nidx = -1
+    for (var ni = 0; ni < navList.length; ni++) if (navList[ni].id === c.id) nidx = ni
+    var prevBtn = pop.querySelector('.pk-nav-prev')
+    if (prevBtn) prevBtn.addEventListener('click', function () { if (nidx > 0) openStep(navList[nidx - 1]) })
+    var nextBtn = pop.querySelector('.pk-nav-next')
+    if (nextBtn) nextBtn.addEventListener('click', function () { if (nidx < navList.length - 1) openStep(navList[nidx + 1]) })
 
     pop.querySelectorAll('.pk-st').forEach(function (sb) {
       sb.addEventListener('click', function () {
@@ -622,6 +663,30 @@
     },
     true,
   )
+
+  // ---- keyboard shortcuts ----
+  // C: toggle comment mode · N/P: next/previous comment · Esc: close / exit.
+  document.addEventListener('keydown', function (e) {
+    var t = e.target
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    var k = e.key
+    if (k === 'Escape') {
+      hidePreview()
+      if (document.querySelector('.pk-pop')) closePopovers()
+      else if (mode) setMode(false)
+    } else if (k === 'c' || k === 'C') {
+      dismissIntro()
+      closePopovers()
+      setMode(!mode)
+    } else if (k === 'n' || k === 'N') {
+      e.preventDefault()
+      step(1)
+    } else if (k === 'p' || k === 'P') {
+      e.preventDefault()
+      step(-1)
+    }
+  })
 
   load()
   maybeShowIntro()

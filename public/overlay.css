@@ -35,6 +35,10 @@
 
 /* Thread popover */
 .pk-thread{max-height:72vh;overflow:auto;width:280px}
+.pk-thread-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-2px 0 8px;padding-bottom:8px;border-bottom:1px solid #eef0f3}
+.pk-nav-count{font:600 12px sans-serif;color:#6b7280}
+.pk-nav-prev,.pk-nav-next{border:1px solid #e6e8ec;background:#fff;color:#1c2024;border-radius:7px;width:26px;height:24px;font:600 14px/1 sans-serif;cursor:pointer;padding:0}
+.pk-nav-prev:disabled,.pk-nav-next:disabled{opacity:.4;cursor:default}
 .pk-pill{display:inline-block;color:#fff;font:600 11px sans-serif;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .pk-pill.sm{font-size:10px;padding:1px 7px}
 .pk-cbody{font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word;margin-top:2px}
