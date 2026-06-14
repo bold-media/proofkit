@@ -4,7 +4,7 @@ import { listPages } from '@/lib/data'
 import { isOwner } from '@/lib/owner'
 import NewPage from './NewPage'
 import PageList from './PageList'
-import LogoutButton from './LogoutButton'
+import AccountControls from './AccountControls'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export default async function Home() {
           <span className="brand-dot" />
           Proofkit
         </div>
-        <LogoutButton />
+        <AccountControls />
       </div>
 
       <h1>Your pages</h1>

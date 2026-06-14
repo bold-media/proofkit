@@ -152,14 +152,16 @@ export default function Editor({
             Require a password to view this link
           </label>
           {requirePw && (
-            <input
-              className="input"
-              type="text"
-              style={{ marginTop: 10, maxWidth: 280 }}
-              value={pwValue}
-              placeholder={page.hasPassword ? 'Set a new password (leave blank to keep current)' : 'Choose a password for clients'}
-              onChange={(e) => setPwValue(e.target.value)}
-            />
+            <div style={{ marginTop: 12 }}>
+              <input
+                className="input"
+                type="text"
+                style={{ maxWidth: 320 }}
+                value={pwValue}
+                placeholder={page.hasPassword ? 'Set a new password (leave blank to keep current)' : 'Choose a password for clients'}
+                onChange={(e) => setPwValue(e.target.value)}
+              />
+            </div>
           )}
           <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
             {requirePw
