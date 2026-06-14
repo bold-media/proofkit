@@ -165,8 +165,15 @@
   }
 
   function sizeLayer() {
-    layer.style.width = document.documentElement.scrollWidth + 'px'
-    layer.style.height = document.documentElement.scrollHeight + 'px'
+    // The layer is absolutely positioned, so its own size counts toward the
+    // document's scrollWidth/scrollHeight. Collapse it to zero before measuring,
+    // otherwise it can only ever grow — leaving big white space below a design
+    // that got shorter after a tall transient (e.g. an SPA settling on load).
+    layer.style.width = '0'
+    layer.style.height = '0'
+    var de = document.documentElement
+    layer.style.width = de.scrollWidth + 'px'
+    layer.style.height = de.scrollHeight + 'px'
   }
   window.addEventListener('resize', function () { render() })
 
