@@ -448,25 +448,28 @@
     return true
   }
   // Swallow the pointer/mouse sequence so links and SPA cards (which often
-  // navigate on pointerdown/mousedown, before click) can't fire.
+  // navigate on pointerdown/mousedown, before click) can't fire. Listen on
+  // window in the capture phase — the very first point in event flow, before
+  // the design's own router — and use stopImmediatePropagation so even a
+  // listener the design attached to the same node can't run.
   ;['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick'].forEach(function (type) {
-    document.addEventListener(
+    window.addEventListener(
       type,
       function (e) {
         if (placingOn(e)) {
           e.preventDefault()
-          e.stopPropagation()
+          e.stopImmediatePropagation()
         }
       },
       true,
     )
   })
-  document.addEventListener(
+  window.addEventListener(
     'click',
     function (e) {
       if (!placingOn(e)) return
       e.preventDefault()
-      e.stopPropagation()
+      e.stopImmediatePropagation()
       var x = (e.pageX / document.documentElement.scrollWidth) * 100
       var y = (e.pageY / document.documentElement.scrollHeight) * 100
       openComposer(x, y, e.clientX, e.clientY)
