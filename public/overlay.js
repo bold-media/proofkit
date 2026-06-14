@@ -9,27 +9,15 @@
   var comments = []
   var mode = false
 
-  var css =
-    '.pk-layer{position:absolute;top:0;left:0;pointer-events:none;z-index:2147483000}' +
-    '.pk-pin{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;width:26px;height:26px;border-radius:50% 50% 50% 2px;background:#dc2626;color:#fff;border:2px solid #fff;font:600 12px/1 sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}' +
-    '.pk-pin.resolved{background:#16a34a}' +
-    '.pk-bar{position:fixed;bottom:20px;right:20px;z-index:2147483600;font-family:sans-serif}' +
-    '.pk-btn{border:none;background:#4f46e5;color:#fff;font:600 14px sans-serif;padding:11px 18px;border-radius:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.22)}' +
-    '.pk-btn.active{background:#dc2626}' +
-    '.pk-pop{position:fixed;z-index:2147483600;width:260px;background:#fff;color:#1c2024;border:1px solid #e6e8ec;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.22);padding:12px;font-family:sans-serif;font-size:14px}' +
-    '.pk-pop input,.pk-pop textarea{width:100%;border:1px solid #e6e8ec;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;margin-bottom:8px;box-sizing:border-box}' +
-    '.pk-pop textarea{resize:vertical;min-height:60px}' +
-    '.pk-pop .pk-row{display:flex;gap:8px;justify-content:flex-end}' +
-    '.pk-pop button{border:none;border-radius:8px;padding:7px 13px;font:600 13px sans-serif;cursor:pointer}' +
-    '.pk-send{background:#4f46e5;color:#fff}.pk-cancel{background:#f1f1f3;color:#1c2024}' +
-    '.pk-meta{font-size:12px;color:#6b7280;margin-bottom:4px}' +
-    '.pk-hint{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#1c2024;color:#fff;font:500 13px sans-serif;padding:8px 16px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.25)}' +
-    '.pk-intro{position:fixed;bottom:76px;right:20px;z-index:2147483600;max-width:240px;background:#1c2024;color:#fff;font:400 13px/1.45 sans-serif;padding:12px 14px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.28)}' +
-    '.pk-intro b{font-weight:600}' +
-    '.pk-intro::after{content:"";position:absolute;bottom:-7px;right:34px;border:7px solid transparent;border-top-color:#1c2024;border-bottom:0}'
-  var style = document.createElement('style')
-  style.textContent = css
-  document.head.appendChild(style)
+  // Styles live in /overlay.css (external file, so a site's CSP that blocks
+  // inline <style> can't strip our UI). Make sure it's loaded.
+  if (!document.querySelector('link[data-proof-css]')) {
+    var link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = API + '/overlay.css'
+    link.setAttribute('data-proof-css', '1')
+    document.head.appendChild(link)
+  }
 
   var layer = document.createElement('div')
   layer.className = 'pk-layer'

@@ -66,7 +66,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   // For folder designs, a <base> makes the design's relative links (css/js/images)
   // resolve to /project/<slug>/… where the asset route serves them.
   const baseTag = needsBase ? `<base href="/project/${slug}/">` : ''
-  const overlay = `<script src="/overlay.js" data-proof-slug="${slug}"></script>`
+  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"></script>`
 
   if (baseTag) {
     html = /<head[^>]*>/i.test(html)
