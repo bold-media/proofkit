@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 
 import { pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 import { contentType, readSiteFile } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,9 @@ export async function GET(
 ) {
   const { slug, path } = await params
 
-  // Don't serve assets of a password-protected page until it's unlocked.
-  if (pageHasPassword(slug)) {
+  // Don't serve assets of a password-protected page until it's unlocked
+  // (the owner always bypasses this).
+  if (pageHasPassword(slug) && !(await isOwner())) {
     const c = await cookies()
     if (c.get(`pk_unlock_${slug}`)?.value !== pageUnlockToken(slug)) {
       return new Response('Locked', { status: 403 })

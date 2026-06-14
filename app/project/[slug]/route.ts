@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 
 import { getPage, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { isOwner } from '@/lib/owner'
 import { readSiteFile } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +34,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   }
 
   // Per-link password gate: show a password screen until the visitor unlocks it.
-  if (pageHasPassword(slug)) {
+  // The owner (logged in) always bypasses it — including in the editor preview.
+  if (pageHasPassword(slug) && !(await isOwner())) {
     const c = await cookies()
     const unlocked = c.get(`pk_unlock_${slug}`)?.value === pageUnlockToken(slug)
     if (!unlocked) {

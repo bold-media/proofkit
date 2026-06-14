@@ -248,8 +248,12 @@ export default function Editor({
       </div>
 
       <label className="field-label" style={{ marginTop: 22 }}>
-        Preview
+        Preview — this is exactly what your client sees
       </label>
+      <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+        To leave (or test) a comment, click the <strong>“💬 Leave feedback”</strong> button at the
+        bottom-right of the design below, then click anywhere on it.
+      </p>
       <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
 
       {confirmDel && (
