@@ -30,7 +30,16 @@ export default async function Home() {
       <NewPage />
 
       <div style={{ marginTop: 24 }}>
-        <PageList pages={pages.map((p) => ({ slug: p.slug, name: p.name, open: p.open, total: p.total }))} />
+        <PageList
+          pages={pages.map((p) => ({
+            slug: p.slug,
+            name: p.name,
+            open: p.open,
+            total: p.total,
+            updated_at: p.updated_at,
+            entry: p.entry,
+          }))}
+        />
       </div>
     </div>
   )

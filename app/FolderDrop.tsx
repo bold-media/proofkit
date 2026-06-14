@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export type PickedFile = { file: File; path: string }
 
@@ -41,6 +41,20 @@ export default function FolderDrop({
   const inputRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   const [info, setInfo] = useState('')
+
+  // When the parent uploads on pick (replacing a folder), the "N files ready"
+  // note would otherwise linger forever. Once an upload finishes (busy goes
+  // true -> false), show a brief confirmation and then clear it.
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    if (wasBusy.current && !busy) {
+      wasBusy.current = false
+      setInfo('Updated ✓')
+      const t = setTimeout(() => setInfo(''), 2500)
+      return () => clearTimeout(t)
+    }
+    wasBusy.current = !!busy
+  }, [busy])
 
   function deliver(items: PickedFile[], suggestedName?: string) {
     const files = clean(items)
