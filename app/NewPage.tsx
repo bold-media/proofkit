@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import FolderDrop, { type PickedFile } from './FolderDrop'
+import { uploadDesign } from './upload'
 
 export default function NewPage() {
   const router = useRouter()
@@ -14,41 +15,37 @@ export default function NewPage() {
   const [url, setUrl] = useState('')
   const [picked, setPicked] = useState<PickedFile[]>([])
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
 
-  async function uploadFolder(slug: string, files: PickedFile[]) {
-    const fd = new FormData()
-    const paths: string[] = []
-    for (const p of files) {
-      fd.append('files', p.file)
-      paths.push(p.path)
-    }
-    fd.append('paths', JSON.stringify(paths))
-    const res = await fetch(`/api/pages/${slug}/files`, { method: 'POST', body: fd })
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Upload failed')
-  }
+  const canCreate =
+    !!name.trim() &&
+    ((mode === 'folder' && picked.length > 0) ||
+      (mode === 'link' && !!url.trim()) ||
+      (mode === 'html' && !!html.trim()))
 
   async function create() {
-    if (mode === 'folder' && picked.length === 0) return
-    if (mode === 'html' && !name.trim() && !html.trim()) return
-    if (mode === 'link' && !url.trim()) return
+    if (!canCreate) return
     setBusy(true)
     try {
       const res = await fetch('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim() || 'Untitled',
+          name: name.trim(),
           html: mode === 'html' ? html : '',
           url: mode === 'link' ? url.trim() : undefined,
         }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not create page')
       const page = await res.json()
-      if (mode === 'folder') await uploadFolder(page.slug, picked)
+      if (mode === 'folder') {
+        await uploadDesign(page.slug, picked, (d, t) => setProgress(`Uploading ${d}/${t}…`))
+      }
       router.push(`/edit/${page.slug}`)
     } catch (e) {
       alert((e as Error).message)
       setBusy(false)
+      setProgress('')
     }
   }
 
@@ -68,7 +65,7 @@ export default function NewPage() {
 
   return (
     <div className="card" style={{ marginTop: 8 }}>
-      <label className="field-label">Page name</label>
+      <label className="field-label">Page name (this becomes part of the link)</label>
       <input
         className="input"
         autoFocus
@@ -99,8 +96,8 @@ export default function NewPage() {
             onChange={(e) => setUrl(e.target.value)}
           />
           <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            proofkit fetches the page from this link and hosts a copy. Works best with a self-contained
-            (standalone) design.
+            proofkit fetches the page from this link and hosts a copy. Works for public links your server
+            can reach (not private Claude links).
           </p>
         </div>
       )}
@@ -118,11 +115,17 @@ export default function NewPage() {
         </div>
       )}
 
-      <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+      <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end', alignItems: 'center' }}>
+        {progress && <span className="muted" style={{ fontSize: 13, marginRight: 'auto' }}>{progress}</span>}
+        {!name.trim() && (
+          <span className="muted" style={{ fontSize: 13, marginRight: 'auto' }}>
+            Give it a name first ↑
+          </span>
+        )}
         <button className="btn ghost" onClick={() => setOpen(false)} disabled={busy}>
           Cancel
         </button>
-        <button className="btn" onClick={create} disabled={busy}>
+        <button className="btn" onClick={create} disabled={busy || !canCreate}>
           {busy ? 'Creating…' : 'Create page'}
         </button>
       </div>

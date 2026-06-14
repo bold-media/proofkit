@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { Comment, Page } from '@/lib/data'
+import FolderDrop, { type PickedFile } from '../../FolderDrop'
+import { uploadDesign } from '../../upload'
 
 export default function Editor({
   page,
@@ -21,7 +23,6 @@ export default function Editor({
   const [publicUrl, setPublicUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
-  const folderRef = useRef<HTMLInputElement>(null)
   const isFolder = !!page.entry
 
   useEffect(() => {
@@ -56,22 +57,10 @@ export default function Editor({
     router.refresh()
   }
 
-  async function replaceFolder(files: FileList) {
+  async function replaceFolder(files: PickedFile[]) {
     setUploading(true)
     try {
-      const fd = new FormData()
-      const paths: string[] = []
-      for (const f of Array.from(files)) {
-        const rel = (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name
-        fd.append('files', f)
-        paths.push(rel)
-      }
-      fd.append('paths', JSON.stringify(paths))
-      const res = await fetch(`/api/pages/${page.slug}/files`, { method: 'POST', body: fd })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        throw new Error(j.error || 'Upload failed')
-      }
+      await uploadDesign(page.slug, files)
       if (frame.current) frame.current.src = `/p/${page.slug}?t=${Date.now()}`
       router.refresh()
     } catch (e) {
@@ -149,23 +138,11 @@ export default function Editor({
           {isFolder ? (
             <>
               <label className="field-label">Design folder</label>
-              <div className="card" style={{ marginBottom: 8 }}>
-                <p style={{ margin: '0 0 10px', fontSize: 14 }}>
-                  This page is a hosted folder (main file: <code>{page.entry}</code>).
-                </p>
-                <input
-                  ref={folderRef}
-                  type="file"
-                  // @ts-expect-error non-standard but supported by browsers
-                  webkitdirectory=""
-                  directory=""
-                  multiple
-                  onChange={(e) => e.target.files && e.target.files.length && replaceFolder(e.target.files)}
-                />
-                <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
-                  {uploading ? 'Uploading…' : 'Pick the folder again to replace it with an updated version. Comments are kept.'}
-                </p>
-              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+                Hosted folder (main file: <code>{page.entry}</code>). Drop a folder again to replace it —
+                comments are kept.
+              </p>
+              <FolderDrop busy={uploading} onPick={replaceFolder} />
             </>
           ) : (
             <>

@@ -56,16 +56,17 @@ export function contentType(file: string): string {
   return MIME[path.extname(file).toLowerCase()] || 'application/octet-stream'
 }
 
-// Save an uploaded set of files (relative path -> bytes) into a site folder,
-// replacing any previous contents. Returns the chosen entry HTML file.
-export async function saveSiteFiles(
-  slug: string,
-  files: { path: string; bytes: Buffer }[],
-): Promise<string | null> {
+// Empty a site folder (used before the first file of a fresh upload).
+export function clearSite(slug: string): void {
   const base = siteDir(slug)
   fs.rmSync(base, { recursive: true, force: true })
   fs.mkdirSync(base, { recursive: true })
+}
 
+// Write (append) files into a site folder without clearing it.
+export function appendSiteFiles(slug: string, files: { path: string; bytes: Buffer }[]): void {
+  const base = siteDir(slug)
+  fs.mkdirSync(base, { recursive: true })
   for (const f of files) {
     const rel = f.path.replace(/^\/+/, '')
     if (!rel || rel.includes('..')) continue
@@ -73,7 +74,21 @@ export async function saveSiteFiles(
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.writeFileSync(dest, f.bytes)
   }
-  return pickEntry(files.map((f) => f.path.replace(/^\/+/, '')))
+}
+
+// All file paths currently in a site folder (to recompute the entry).
+export function listSiteFiles(slug: string): string[] {
+  const base = siteDir(slug)
+  const out: string[] = []
+  const walk = (dir: string, prefix: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const rel = prefix ? `${prefix}/${e.name}` : e.name
+      if (e.isDirectory()) walk(path.join(dir, e.name), rel)
+      else out.push(rel)
+    }
+  }
+  if (fs.existsSync(base)) walk(base, '')
+  return out
 }
 
 // Choose which HTML file is the page to show: prefer the shallowest index.html,

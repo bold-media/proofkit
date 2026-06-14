@@ -45,8 +45,21 @@ export function getPage(slug: string): Page | undefined {
   return row ? plain<Page>(row) : undefined
 }
 
+// Build a readable URL slug from the page name (e.g. "Summer Campaign" -> "summer-campaign").
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+}
+
 export function createPage(name: string, html: string, sourceUrl?: string): Page {
-  const slug = makeId()
+  const base = slugify(name) || makeId()
+  let slug = base
+  // Keep slugs unique; append a short suffix if this one is taken.
+  while (getPage(slug)) slug = `${base}-${makeId(4)}`
   const now = new Date().toISOString()
   db.prepare(
     'INSERT INTO pages (slug, name, html, source_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
