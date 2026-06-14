@@ -1,7 +1,6 @@
-import Link from 'next/link'
-
 import { listPages } from '@/lib/data'
 import NewPage from './NewPage'
+import PageList from './PageList'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,27 +24,7 @@ export default function Home() {
       <NewPage />
 
       <div style={{ marginTop: 24 }}>
-        {pages.length === 0 ? (
-          <div className="empty">No pages yet. Create your first one above.</div>
-        ) : (
-          pages.map((p) => (
-            <Link key={p.slug} href={`/edit/${p.slug}`} className="page-row">
-              <div>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                <div className="muted" style={{ fontSize: 13 }}>
-                  /project/{p.slug}
-                </div>
-              </div>
-              <div className="row">
-                {p.open > 0 ? (
-                  <span className="badge open">{p.open} open</span>
-                ) : (
-                  <span className="badge">{p.total} comments</span>
-                )}
-              </div>
-            </Link>
-          ))
-        )}
+        <PageList pages={pages.map((p) => ({ slug: p.slug, name: p.name, open: p.open, total: p.total }))} />
       </div>
     </div>
   )
