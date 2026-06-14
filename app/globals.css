@@ -189,9 +189,14 @@ h1 {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr 1fr;
   gap: 18px;
   align-items: start;
+}
+@media (max-width: 820px) {
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .snippet {
@@ -239,6 +244,70 @@ h1 {
 
 .comment.resolved .comment-pin {
   background: var(--success);
+}
+
+.comment.dim {
+  opacity: 0.6;
+}
+
+.cbadge {
+  display: inline-block;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.cstatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+
+.cstatus-btn {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cstatus-btn.on {
+  background: var(--c);
+  border-color: var(--c);
+  color: #fff;
+}
+
+.creplies {
+  margin: 10px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.creply-author {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+
+.reply-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.reply-form .input {
+  flex: 1;
 }
 
 .preview-frame {

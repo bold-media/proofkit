@@ -41,6 +41,16 @@ function init(): DatabaseSync {
   if (!cols.includes('entry')) db.exec('ALTER TABLE pages ADD COLUMN entry TEXT')
   if (!cols.includes('source_url')) db.exec('ALTER TABLE pages ADD COLUMN source_url TEXT')
   if (!cols.includes('view_password')) db.exec('ALTER TABLE pages ADD COLUMN view_password TEXT')
+
+  // Comment status (open/progress/resolved) replaces the old binary
+  // `resolved` flag, and `parent_id` threads replies under a top-level comment.
+  const ccols = (db.prepare('PRAGMA table_info(comments)').all() as { name: string }[]).map((c) => c.name)
+  if (!ccols.includes('status')) {
+    db.exec("ALTER TABLE comments ADD COLUMN status TEXT NOT NULL DEFAULT 'open'")
+    // Backfill from the legacy flag so already-resolved comments stay resolved.
+    db.exec("UPDATE comments SET status = 'resolved' WHERE resolved = 1")
+  }
+  if (!ccols.includes('parent_id')) db.exec('ALTER TABLE comments ADD COLUMN parent_id TEXT')
   return db
 }
 

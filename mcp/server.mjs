@@ -74,12 +74,17 @@ server.tool(
       const r = await fetch(`${BASE}/api/comments?page=${encodeURIComponent(slug)}`)
       const { comments } = await r.json()
       if (!comments?.length) return text('No comments on this page yet.')
+      const labels = { open: 'open', progress: 'in progress', resolved: 'resolved' }
+      const tops = comments.filter((c) => !c.parent_id)
       return text(
-        comments
-          .map(
-            (c, i) =>
-              `#${i + 1} [${c.resolved ? 'resolved' : 'open'}] ${c.author} (at ${Math.round(c.x_pct)}%,${Math.round(c.y_pct)}% of page): ${c.body}  (id: ${c.id})`,
-          )
+        tops
+          .map((c, i) => {
+            const line = `#${i + 1} [${labels[c.status] || 'open'}] ${c.author} (at ${Math.round(c.x_pct)}%,${Math.round(c.y_pct)}% of page): ${c.body}  (id: ${c.id})`
+            const replies = comments
+              .filter((x) => x.parent_id === c.id)
+              .map((x) => `    ↳ ${x.author}: ${x.body}`)
+            return [line, ...replies].join('\n')
+          })
           .join('\n'),
       )
     } catch (e) {

@@ -66,7 +66,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   // For folder designs, a <base> makes the design's relative links (css/js/images)
   // resolve to /project/<slug>/… where the asset route serves them.
   const baseTag = needsBase ? `<base href="/project/${slug}/">` : ''
-  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"></script>`
+  // Tell the overlay whether the viewer is the owner, so it can show owner-only
+  // controls (status changes, delete). The API still enforces this server-side.
+  const ownerAttr = (await isOwner()) ? ' data-proof-owner="1"' : ''
+  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}></script>`
 
   if (baseTag) {
     html = /<head[^>]*>/i.test(html)

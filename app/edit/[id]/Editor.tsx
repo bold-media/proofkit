@@ -3,10 +3,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import type { ClientPage, Comment } from '@/lib/data'
+import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
 import { uploadDesign } from '../../upload'
+
+const STATUS: Record<CommentStatus, { label: string; color: string }> = {
+  open: { label: 'Open', color: '#dc2626' },
+  progress: { label: 'In progress', color: '#d97706' },
+  resolved: { label: 'Resolved', color: '#16a34a' },
+}
+const STATUS_ORDER: CommentStatus[] = ['open', 'progress', 'resolved']
+function statusOf(c: Comment): CommentStatus {
+  return (STATUS[c.status as CommentStatus] ? c.status : 'open') as CommentStatus
+}
 
 export default function Editor({
   page,
@@ -84,17 +94,30 @@ export default function Editor({
     setTimeout(() => setCopied(false), 1500)
   }
 
-  async function resolve(id: string, resolved: boolean) {
-    setComments((cs) => cs.map((c) => (c.id === id ? { ...c, resolved: resolved ? 1 : 0 } : c)))
+  async function setStatus(id: string, status: CommentStatus) {
+    setComments((cs) =>
+      cs.map((c) => (c.id === id ? { ...c, status, resolved: status === 'resolved' ? 1 : 0 } : c)),
+    )
     await fetch(`/api/comments/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resolved }),
+      body: JSON.stringify({ status }),
     })
   }
 
+  async function reply(parentId: string, body: string) {
+    const res = await fetch('/api/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page_slug: page.slug, parent_id: parentId, author: 'Owner', body }),
+    })
+    const created = await res.json()
+    if (created && created.id) setComments((cs) => [...cs, created])
+  }
+
   async function removeComment(id: string) {
-    setComments((cs) => cs.filter((c) => c.id !== id))
+    // Removing a top-level comment removes its replies too.
+    setComments((cs) => cs.filter((c) => c.id !== id && c.parent_id !== id))
     await fetch(`/api/comments/${id}`, { method: 'DELETE' })
   }
 
@@ -104,7 +127,15 @@ export default function Editor({
     router.push('/')
   }
 
-  const openCount = comments.filter((c) => !c.resolved).length
+  const tops = comments.filter((c) => !c.parent_id)
+  const repliesByParent = comments.reduce<Record<string, Comment[]>>((acc, c) => {
+    if (c.parent_id) (acc[c.parent_id] ||= []).push(c)
+    return acc
+  }, {})
+  const openCount = tops.filter((c) => {
+    const s = statusOf(c)
+    return s === 'open' || s === 'progress'
+  }).length
 
   return (
     <div>
@@ -198,50 +229,21 @@ export default function Editor({
           <label className="field-label">
             Comments {openCount > 0 && <span className="badge open">{openCount} open</span>}
           </label>
-          {comments.length === 0 ? (
+          {tops.length === 0 ? (
             <p className="muted" style={{ fontSize: 14 }}>
               No comments yet. Share the live link and feedback shows up here.
             </p>
           ) : (
-            comments.map((c, i) => (
-              <div key={c.id} className={c.resolved ? 'comment resolved' : 'comment'}>
-                <div className="comment-head">
-                  <span className="comment-pin">{i + 1}</span>
-                  <strong style={{ fontWeight: 600 }}>{c.author}</strong>
-                  <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                <div style={{ fontSize: 14 }}>{c.body}</div>
-                <div className="row" style={{ marginTop: 8, gap: 14 }}>
-                  <button
-                    onClick={() => resolve(c.id, !c.resolved)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--accent)',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      padding: 0,
-                    }}
-                  >
-                    {c.resolved ? 'Reopen' : 'Mark resolved'}
-                  </button>
-                  <button
-                    onClick={() => removeComment(c.id)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--muted)',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      padding: 0,
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+            tops.map((c, i) => (
+              <CommentCard
+                key={c.id}
+                comment={c}
+                number={i + 1}
+                replies={repliesByParent[c.id] || []}
+                onStatus={(s) => setStatus(c.id, s)}
+                onReply={(body) => reply(c.id, body)}
+                onDelete={() => removeComment(c.id)}
+              />
             ))
           )}
         </div>
@@ -251,8 +253,9 @@ export default function Editor({
         Preview — exactly what your client sees
       </label>
       <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
-        Your client clicks the <strong>“💬 Leave feedback”</strong> button (bottom-right of the design) to
-        pin comments; they show up in the Comments panel above.
+        Your client clicks <strong>“Leave feedback”</strong> (bottom-right) to drop pins, and{' '}
+        <strong>“Comments”</strong> to open the list. Everything shows up here too — set a status or reply
+        from either place.
       </p>
       <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
 
@@ -286,6 +289,99 @@ export default function Editor({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function CommentCard({
+  comment,
+  number,
+  replies,
+  onStatus,
+  onReply,
+  onDelete,
+}: {
+  comment: Comment
+  number: number
+  replies: Comment[]
+  onStatus: (s: CommentStatus) => void
+  onReply: (body: string) => void
+  onDelete: () => void
+}) {
+  const [text, setText] = useState('')
+  const status = statusOf(comment)
+  const dim = status === 'resolved'
+
+  function send() {
+    const body = text.trim()
+    if (!body) return
+    onReply(body)
+    setText('')
+  }
+
+  return (
+    <div className={dim ? 'comment dim' : 'comment'}>
+      <div className="comment-head">
+        <span className="comment-pin" style={{ background: STATUS[status].color }}>
+          {number}
+        </span>
+        <strong style={{ fontWeight: 600 }}>{comment.author}</strong>
+        <span className="cbadge" style={{ background: STATUS[status].color }}>
+          {STATUS[status].label}
+        </span>
+      </div>
+      <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{comment.body}</div>
+
+      <div className="cstatus">
+        {STATUS_ORDER.map((s) => (
+          <button
+            key={s}
+            className={s === status ? 'cstatus-btn on' : 'cstatus-btn'}
+            style={{ ['--c' as string]: STATUS[s].color }}
+            onClick={() => onStatus(s)}
+          >
+            {STATUS[s].label}
+          </button>
+        ))}
+      </div>
+
+      {replies.length > 0 && (
+        <div className="creplies">
+          {replies.map((r) => (
+            <div key={r.id} style={{ fontSize: 13 }}>
+              <div className="creply-author">{r.author}</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="reply-form">
+        <input
+          className="input"
+          placeholder="Reply…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              send()
+            }
+          }}
+        />
+        <button className="btn ghost" onClick={send} disabled={!text.trim()}>
+          Reply
+        </button>
+      </div>
+
+      <div className="row" style={{ marginTop: 8 }}>
+        <button
+          onClick={onDelete}
+          style={{ border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: 0 }}
+        >
+          Delete
+        </button>
+      </div>
     </div>
   )
 }

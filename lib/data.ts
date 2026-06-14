@@ -33,6 +33,9 @@ export function toClientPage(p: Page): ClientPage {
   }
 }
 
+export const COMMENT_STATUSES = ['open', 'progress', 'resolved'] as const
+export type CommentStatus = (typeof COMMENT_STATUSES)[number]
+
 export type Comment = {
   id: string
   page_slug: string
@@ -41,6 +44,8 @@ export type Comment = {
   author: string
   body: string
   resolved: number
+  status: CommentStatus
+  parent_id: string | null
   created_at: string
 }
 
@@ -125,27 +130,38 @@ export function listComments(slug: string): Comment[] {
     .map((r) => plain<Comment>(r))
 }
 
+export function getComment(id: string): Comment | undefined {
+  const row = db.prepare('SELECT * FROM comments WHERE id = ?').get(id)
+  return row ? plain<Comment>(row) : undefined
+}
+
 export function createComment(c: {
   page_slug: string
   x_pct: number
   y_pct: number
   author: string
   body: string
+  parent_id?: string | null
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
   db.prepare(
-    'INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, now)
-  return db.prepare('SELECT * FROM comments WHERE id = ?').get(id) as Comment
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, now)
+  return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
-export function setCommentResolved(id: string, resolved: boolean): void {
-  db.prepare('UPDATE comments SET resolved = ? WHERE id = ?').run(resolved ? 1 : 0, id)
+export function setCommentStatus(id: string, status: CommentStatus): void {
+  db.prepare('UPDATE comments SET status = ?, resolved = ? WHERE id = ?').run(
+    status,
+    status === 'resolved' ? 1 : 0,
+    id,
+  )
 }
 
 export function deleteComment(id: string): void {
-  db.prepare('DELETE FROM comments WHERE id = ?').run(id)
+  // Deleting a top-level comment removes its replies too.
+  db.prepare('DELETE FROM comments WHERE id = ? OR parent_id = ?').run(id, id)
 }
 
 // ---- Settings (key/value) ----

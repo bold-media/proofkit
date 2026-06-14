@@ -76,50 +76,89 @@
   }
   ensureCss()
 
-  var layer = document.createElement('div')
-  layer.className = 'pk-layer'
+  // The owner (logged in) gets extra controls: changing a comment's status and
+  // deleting. The server still enforces this — the flag only gates the UI.
+  var OWNER = !!(me && me.getAttribute('data-proof-owner'))
+
+  var STATUS = {
+    open: { label: 'Open', color: '#dc2626' },
+    progress: { label: 'In progress', color: '#d97706' },
+    resolved: { label: 'Resolved', color: '#16a34a' },
+  }
+  var STATUS_ORDER = ['open', 'progress', 'resolved']
+  function statusOf(c) { return STATUS[c.status] ? c.status : 'open' }
+
+  function el(tag, cls) { var n = document.createElement(tag); if (cls) n.className = cls; return n }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]
+    })
+  }
+
+  // ---- comment data helpers ----
+  function tops() { return comments.filter(function (c) { return !c.parent_id }) }
+  function repliesOf(id) { return comments.filter(function (c) { return c.parent_id === id }) }
+  function byId(id) { for (var i = 0; i < comments.length; i++) if (comments[i].id === id) return comments[i]; return null }
+  function activeCount() {
+    return tops().filter(function (c) { var s = statusOf(c); return s === 'open' || s === 'progress' }).length
+  }
+  function numberOf(c) { var t = tops(); for (var i = 0; i < t.length; i++) if (t[i].id === c.id) return i + 1; return '?' }
+
+  // ---- elements ----
+  var layer = el('div', 'pk-layer')
   document.body.appendChild(layer)
 
-  var bar = document.createElement('div')
-  bar.className = 'pk-bar'
-  var btn = document.createElement('button')
-  btn.className = 'pk-btn'
+  var bar = el('div', 'pk-bar')
+  var listBtn = el('button', 'pk-btn pk-ghost')
+  var btn = el('button', 'pk-btn')
+  bar.appendChild(listBtn)
   bar.appendChild(btn)
   document.body.appendChild(bar)
 
-  // The button's core look is also set inline via the CSSOM. Setting .style
-  // properties is NOT subject to CSP style-src, so the button stays styled
-  // and correctly positioned even when overlay.css hasn't loaded yet or was
-  // stripped by a design that replaced the document.
+  var panel = el('div', 'pk-panel')
+  document.body.appendChild(panel)
+  var panelOpen = false
+
+  // Core look is also set inline via the CSSOM (not subject to CSP style-src),
+  // so the always-visible bar stays styled even if overlay.css was stripped by
+  // a design that replaced the document.
   function styleBar() {
     bar.style.cssText =
       'position:fixed;bottom:20px;right:20px;left:auto;top:auto;z-index:2147483600;' +
-      'margin:0;font-family:sans-serif'
-    btn.style.cssText =
-      'border:none;background:' + (mode ? '#dc2626' : '#4f46e5') + ';color:#fff;' +
-      'font:600 14px sans-serif;padding:11px 18px;border-radius:24px;cursor:pointer;' +
+      'display:flex;gap:10px;align-items:center;margin:0;font-family:sans-serif'
+    var base = 'font:600 14px sans-serif;padding:11px 18px;border-radius:24px;cursor:pointer;' +
       'box-shadow:0 4px 16px rgba(0,0,0,.22);white-space:nowrap'
+    btn.style.cssText = 'border:none;color:#fff;background:' + (mode ? '#dc2626' : '#4f46e5') + ';' + base
+    listBtn.style.cssText = 'background:#fff;color:#1c2024;border:1px solid #e6e8ec;' + base
   }
   styleBar()
 
+  function stylePanel() {
+    panel.style.cssText =
+      'position:fixed;top:0;right:0;height:100vh;width:320px;max-width:86vw;z-index:2147483500;' +
+      'background:#fff;border-left:1px solid #e6e8ec;box-shadow:-8px 0 30px rgba(0,0,0,.12);' +
+      'font-family:sans-serif;display:flex;flex-direction:column;overflow:hidden;' +
+      'transition:transform .22s ease;transform:translateX(' + (panelOpen ? '0' : '100%') + ')'
+  }
+  stylePanel()
+
   function updateBtn() {
-    var open = comments.filter(function (c) { return !c.resolved }).length
-    btn.textContent = mode ? '✕ Cancel' : '💬 Leave feedback' + (open ? ' · ' + open : '')
-    btn.classList.toggle('active', mode)
+    btn.textContent = mode ? 'Done' : 'Leave feedback'
+    var n = activeCount()
+    listBtn.textContent = 'Comments' + (n ? ' · ' + n : '')
     styleBar()
   }
 
+  // ---- intro tip ----
   function dismissIntro() {
-    var el = document.querySelector('.pk-intro')
-    if (el) el.remove()
+    var n = document.querySelector('.pk-intro')
+    if (n) n.remove()
     try { localStorage.setItem('pk_intro_seen', '1') } catch (e) {}
   }
-
   function maybeShowIntro() {
     try { if (localStorage.getItem('pk_intro_seen')) return } catch (e) {}
-    var tip = document.createElement('div')
-    tip.className = 'pk-intro'
-    tip.innerHTML = '<b>Leave feedback here 👇</b><br>Click this button, then click anywhere on the design to drop a comment.'
+    var tip = el('div', 'pk-intro')
+    tip.innerHTML = '<b>Leave feedback here</b><br>Click “Leave feedback”, then click anywhere on the design to drop a comment.'
     document.body.appendChild(tip)
     setTimeout(dismissIntro, 9000)
   }
@@ -131,8 +170,7 @@
   window.addEventListener('resize', function () { render() })
 
   function closePopovers() {
-    var ps = document.querySelectorAll('.pk-pop,.pk-hint')
-    ps.forEach(function (p) { p.remove() })
+    document.querySelectorAll('.pk-pop,.pk-hint').forEach(function (p) { p.remove() })
   }
 
   function load() {
@@ -145,42 +183,50 @@
   function render() {
     sizeLayer()
     layer.innerHTML = ''
-    comments.forEach(function (c, i) {
-      var pin = document.createElement('button')
-      pin.className = 'pk-pin' + (c.resolved ? ' resolved' : '')
+    tops().forEach(function (c, i) {
+      var pin = el('button', 'pk-pin')
       pin.textContent = i + 1
+      pin.setAttribute('data-id', c.id)
       pin.style.left = c.x_pct + '%'
       pin.style.top = c.y_pct + '%'
+      pin.style.background = STATUS[statusOf(c)].color
       pin.addEventListener('click', function (e) {
         e.stopPropagation()
-        showView(c, i + 1, pin)
+        showThread(c, pin)
       })
       layer.appendChild(pin)
     })
     updateBtn()
+    if (panelOpen) renderPanel()
   }
 
-  function toggleMode() {
-    mode = !mode
+  // ---- comment mode (persistent: stays on until you click "Done") ----
+  function setMode(on) {
+    mode = on
     document.body.style.cursor = mode ? 'crosshair' : ''
-    closePopovers()
-    updateBtn()
-    if (mode) {
-      var hint = document.createElement('div')
-      hint.className = 'pk-hint'
-      hint.textContent = 'Click anywhere on the page to leave a comment'
+    var hint = document.querySelector('.pk-hint')
+    if (mode && !hint) {
+      hint = el('div', 'pk-hint')
+      hint.textContent = 'Click anywhere on the design to drop a comment · click “Done” when finished'
       document.body.appendChild(hint)
+    } else if (!mode && hint) {
+      hint.remove()
     }
+    updateBtn()
   }
 
   btn.addEventListener('click', function (e) {
     e.stopPropagation()
     dismissIntro()
-    toggleMode()
+    closePopovers()
+    setMode(!mode)
+  })
+  listBtn.addEventListener('click', function (e) {
+    e.stopPropagation()
+    togglePanel()
   })
 
   function clamp(v, max) { return Math.max(12, Math.min(v, max)) }
-
   function positionPop(pop, clientX, clientY) {
     document.body.appendChild(pop)
     var w = pop.offsetWidth, h = pop.offsetHeight
@@ -188,16 +234,13 @@
     pop.style.top = clamp(clientY, window.innerHeight - h - 12) + 'px'
   }
 
+  // ---- new comment composer ----
   function openComposer(xPct, yPct, clientX, clientY) {
     closePopovers()
     var savedName = localStorage.getItem(NAME_KEY) || ''
-    var pop = document.createElement('div')
-    pop.className = 'pk-pop'
-    var nameField = savedName
-      ? ''
-      : '<input class="pk-name" placeholder="Your name" />'
+    var pop = el('div', 'pk-pop')
     pop.innerHTML =
-      nameField +
+      (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
       '<textarea class="pk-text" placeholder="Leave your feedback…"></textarea>' +
       '<div class="pk-row"><button class="pk-cancel">Cancel</button><button class="pk-send">Send</button></div>'
     positionPop(pop, clientX, clientY)
@@ -208,7 +251,7 @@
       var name = savedName || (pop.querySelector('.pk-name') ? pop.querySelector('.pk-name').value.trim() : '')
       var text = ta.value.trim()
       if (!text) return
-      if (!name) name = 'Guest'
+      if (!name) name = OWNER ? 'Owner' : 'Guest'
       localStorage.setItem(NAME_KEY, name)
       fetch(API + '/api/comments', {
         method: 'POST',
@@ -216,49 +259,154 @@
         body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text }),
       })
         .then(function (r) { return r.json() })
-        .then(function (c) {
-          if (c && c.id) comments.push(c)
-          render()
-        })
+        .then(function (c) { if (c && c.id) comments.push(c); render() })
       closePopovers()
+      // Stay in comment mode so the client can drop several pins in a row.
     })
   }
 
-  function showView(c, num, pin) {
+  // ---- thread popover (comment + replies + reply box + owner controls) ----
+  function threadHtml(c) {
+    var s = statusOf(c)
+    var h = '<div class="pk-meta"><b>#' + numberOf(c) + '</b> · ' + escapeHtml(c.author) +
+      ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
+      '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
+    var rs = repliesOf(c.id)
+    if (rs.length) {
+      h += '<div class="pk-replies">'
+      rs.forEach(function (r) {
+        h += '<div class="pk-reply"><b>' + escapeHtml(r.author) + '</b><span>' + escapeHtml(r.body) + '</span></div>'
+      })
+      h += '</div>'
+    }
+    if (OWNER) {
+      h += '<div class="pk-statusrow">'
+      STATUS_ORDER.forEach(function (k) {
+        h += '<button class="pk-st' + (k === s ? ' on' : '') + '" data-st="' + k + '" style="--c:' + STATUS[k].color + '">' + STATUS[k].label + '</button>'
+      })
+      h += '</div>'
+    }
+    var savedName = localStorage.getItem(NAME_KEY) || ''
+    h += '<div class="pk-replybox">' +
+      (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
+      '<textarea class="pk-text" placeholder="Reply…"></textarea>' +
+      '<div class="pk-row">' +
+      (OWNER ? '<button class="pk-del">Delete</button>' : '') +
+      '<button class="pk-cancel">Close</button><button class="pk-send">Reply</button></div>' +
+      '</div>'
+    return h
+  }
+
+  function showThread(c, pin) {
     closePopovers()
+    var pop = el('div', 'pk-pop pk-thread')
+    pop.innerHTML = threadHtml(c)
     var rect = pin.getBoundingClientRect()
-    var pop = document.createElement('div')
-    pop.className = 'pk-pop'
-    pop.innerHTML =
-      '<div class="pk-meta"><b>#' + num + '</b> · ' + escapeHtml(c.author) +
-      (c.resolved ? ' · resolved' : '') + '</div>' +
-      '<div>' + escapeHtml(c.body) + '</div>' +
-      '<div class="pk-row" style="margin-top:8px"><button class="pk-cancel">Close</button></div>'
     positionPop(pop, rect.left, rect.bottom + 8)
-    pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
+    wireThread(pop, c, pin)
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"]/g, function (ch) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]
+  function wireThread(pop, c, pin) {
+    pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
+    var savedName = localStorage.getItem(NAME_KEY) || ''
+    var ta = pop.querySelector('.pk-text')
+
+    pop.querySelectorAll('.pk-st').forEach(function (sb) {
+      sb.addEventListener('click', function () {
+        var st = sb.getAttribute('data-st')
+        c.status = st
+        fetch(API + '/api/comments/' + c.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: st }),
+        }).catch(function () {})
+        render()
+        showThread(c, pin) // reopen so the pill + active button refresh
+      })
+    })
+
+    var del = pop.querySelector('.pk-del')
+    if (del) del.addEventListener('click', function () {
+      fetch(API + '/api/comments/' + c.id, { method: 'DELETE' }).catch(function () {})
+      comments = comments.filter(function (x) { return x.id !== c.id && x.parent_id !== c.id })
+      closePopovers()
+      render()
+    })
+
+    pop.querySelector('.pk-send').addEventListener('click', function () {
+      var name = savedName || (pop.querySelector('.pk-name') ? pop.querySelector('.pk-name').value.trim() : '')
+      var text = ta.value.trim()
+      if (!text) return
+      if (!name) name = OWNER ? 'Owner' : 'Guest'
+      localStorage.setItem(NAME_KEY, name)
+      fetch(API + '/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page_slug: slug, parent_id: c.id, author: name, body: text }),
+      })
+        .then(function (r) { return r.json() })
+        .then(function (rep) {
+          if (rep && rep.id) comments.push(rep)
+          render()
+          showThread(c, pin) // reopen with the new reply shown
+        })
+        .catch(function () {})
     })
   }
 
+  // ---- slide-out list panel ----
+  function togglePanel() {
+    panelOpen = !panelOpen
+    if (panelOpen) renderPanel()
+    stylePanel()
+  }
+
+  function renderPanel() {
+    var t = tops()
+    var h = '<div class="pk-panel-head"><b>Comments</b><button class="pk-panel-close" aria-label="Close">✕</button></div>'
+    if (!t.length) {
+      h += '<div class="pk-empty">No comments yet. Click “Leave feedback” to add one.</div>'
+    } else {
+      h += '<div class="pk-panel-list">'
+      t.forEach(function (c, i) {
+        var s = statusOf(c)
+        var nr = repliesOf(c.id).length
+        h += '<button class="pk-item" data-id="' + c.id + '">' +
+          '<div class="pk-item-head"><span class="pk-dot" style="background:' + STATUS[s].color + '"></span>' +
+          '<b>#' + (i + 1) + '</b> ' + escapeHtml(c.author) +
+          '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
+          '<div class="pk-item-body">' + escapeHtml(c.body) + '</div>' +
+          (nr ? '<div class="pk-item-meta">' + nr + (nr > 1 ? ' replies' : ' reply') + '</div>' : '') +
+          '</button>'
+      })
+      h += '</div>'
+    }
+    panel.innerHTML = h
+    panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
+    panel.querySelectorAll('.pk-item').forEach(function (it) {
+      it.addEventListener('click', function () {
+        var c = byId(it.getAttribute('data-id'))
+        if (!c) return
+        var pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
+        if (pin) {
+          try { pin.scrollIntoView({ block: 'center', inline: 'center' }) } catch (e) {}
+          showThread(c, pin)
+        }
+      })
+    })
+  }
+
+  // ---- placing clicks (persistent while in comment mode) ----
   document.addEventListener(
     'click',
     function (e) {
       if (!mode) return
-      if (bar.contains(e.target)) return
-      if (e.target.closest && e.target.closest('.pk-pop')) return
+      if (bar.contains(e.target) || panel.contains(e.target)) return
+      if (e.target.closest && (e.target.closest('.pk-pop') || e.target.closest('.pk-pin'))) return
       e.preventDefault()
       e.stopPropagation()
       var x = (e.pageX / document.documentElement.scrollWidth) * 100
       var y = (e.pageY / document.documentElement.scrollHeight) * 100
-      mode = false
-      document.body.style.cursor = ''
-      updateBtn()
-      var hint = document.querySelector('.pk-hint')
-      if (hint) hint.remove()
       openComposer(x, y, e.clientX, e.clientY)
     },
     true,
@@ -266,18 +414,21 @@
 
   load()
   maybeShowIntro()
+  // Reflect comments/replies left by others without a manual refresh.
+  setInterval(load, 6000)
 
   // Some designs re-render or replace the whole document after they boot,
   // which wipes our injected DOM and the stylesheet link — re-add whatever
-  // is missing and re-apply the inline button styles so it never comes back
-  // unstyled.
+  // is missing and re-apply the inline styles so the UI never comes back broken.
   setInterval(function () {
     ensureCss()
     if (!document.body.contains(bar)) document.body.appendChild(bar)
+    if (!document.body.contains(panel)) document.body.appendChild(panel)
     if (!document.body.contains(layer)) {
       document.body.appendChild(layer)
       render()
     }
     styleBar()
+    stylePanel()
   }, 1500)
 })()
