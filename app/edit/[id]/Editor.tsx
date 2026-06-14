@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { REACTION_EMOJI } from '@/lib/data'
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
+import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
 import { uploadDesign } from '../../upload'

@@ -37,7 +37,8 @@ export const COMMENT_STATUSES = ['open', 'progress', 'resolved'] as const
 export type CommentStatus = (typeof COMMENT_STATUSES)[number]
 
 // A small fixed palette of reactions clients/owner can add to a comment.
-export const REACTION_EMOJI = ['👍', '❤️', '✅', '🎉'] as const
+// Defined in a dependency-free module so client components can import it too.
+export { REACTION_EMOJI } from './reactions'
 
 export type Reaction = { emoji: string; count: number; mine: boolean }
 
