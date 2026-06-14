@@ -1,50 +1,50 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+import FolderDrop, { type PickedFile } from './FolderDrop'
 
 export default function NewPage() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'folder' | 'html'>('folder')
+  const [mode, setMode] = useState<'folder' | 'html' | 'link'>('folder')
   const [name, setName] = useState('')
   const [html, setHtml] = useState('')
-  const [folderInfo, setFolderInfo] = useState('')
+  const [url, setUrl] = useState('')
+  const [picked, setPicked] = useState<PickedFile[]>([])
   const [busy, setBusy] = useState(false)
-  const folderRef = useRef<HTMLInputElement>(null)
 
-  async function uploadFolder(slug: string, files: FileList) {
+  async function uploadFolder(slug: string, files: PickedFile[]) {
     const fd = new FormData()
     const paths: string[] = []
-    for (const f of Array.from(files)) {
-      // webkitRelativePath looks like "MyDesign/index.html" — drop the top folder.
-      const rel = (f.webkitRelativePath || f.name).split('/').slice(1).join('/') || f.name
-      fd.append('files', f)
-      paths.push(rel)
+    for (const p of files) {
+      fd.append('files', p.file)
+      paths.push(p.path)
     }
     fd.append('paths', JSON.stringify(paths))
     const res = await fetch(`/api/pages/${slug}/files`, { method: 'POST', body: fd })
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}))
-      throw new Error(j.error || 'Upload failed')
-    }
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Upload failed')
   }
 
   async function create() {
-    const files = folderRef.current?.files
-    if (mode === 'folder' && !(files && files.length)) return
+    if (mode === 'folder' && picked.length === 0) return
     if (mode === 'html' && !name.trim() && !html.trim()) return
+    if (mode === 'link' && !url.trim()) return
     setBusy(true)
     try {
       const res = await fetch('/api/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() || 'Untitled', html: mode === 'html' ? html : '' }),
+        body: JSON.stringify({
+          name: name.trim() || 'Untitled',
+          html: mode === 'html' ? html : '',
+          url: mode === 'link' ? url.trim() : undefined,
+        }),
       })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not create page')
       const page = await res.json()
-      if (mode === 'folder' && files && files.length) {
-        await uploadFolder(page.slug, files)
-      }
+      if (mode === 'folder') await uploadFolder(page.slug, picked)
       router.push(`/edit/${page.slug}`)
     } catch (e) {
       alert((e as Error).message)
@@ -60,6 +60,12 @@ export default function NewPage() {
     )
   }
 
+  const tab = (key: typeof mode, label: string) => (
+    <button className={mode === key ? 'btn' : 'btn ghost'} onClick={() => setMode(key)} type="button">
+      {label}
+    </button>
+  )
+
   return (
     <div className="card" style={{ marginTop: 8 }}>
       <label className="field-label">Page name</label>
@@ -72,46 +78,34 @@ export default function NewPage() {
       />
 
       <div className="row" style={{ marginTop: 16, gap: 8 }}>
-        <button
-          className={mode === 'folder' ? 'btn' : 'btn ghost'}
-          onClick={() => setMode('folder')}
-          type="button"
-        >
-          Upload a folder
-        </button>
-        <button
-          className={mode === 'html' ? 'btn' : 'btn ghost'}
-          onClick={() => setMode('html')}
-          type="button"
-        >
-          Paste HTML
-        </button>
+        {tab('folder', 'Upload a folder')}
+        {tab('link', 'Import from link')}
+        {tab('html', 'Paste HTML')}
       </div>
 
-      {mode === 'folder' ? (
+      {mode === 'folder' && (
         <div style={{ marginTop: 14 }}>
-          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            Pick the whole design folder (the HTML plus its CSS, JS and images). Everything is hosted together.
-          </p>
-          <input
-            ref={folderRef}
-            type="file"
-            // @ts-expect-error non-standard but supported by browsers
-            webkitdirectory=""
-            directory=""
-            multiple
-            onChange={(e) => {
-              const n = e.target.files?.length || 0
-              setFolderInfo(n ? `${n} files selected` : '')
-            }}
-          />
-          {folderInfo && (
-            <p className="muted" style={{ fontSize: 13 }}>
-              {folderInfo}
-            </p>
-          )}
+          <FolderDrop busy={busy} onPick={setPicked} />
         </div>
-      ) : (
+      )}
+
+      {mode === 'link' && (
+        <div style={{ marginTop: 14 }}>
+          <label className="field-label">Link to your design (a published page / standalone file)</label>
+          <input
+            className="input"
+            value={url}
+            placeholder="https://…"
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+            proofkit fetches the page from this link and hosts a copy. Works best with a self-contained
+            (standalone) design.
+          </p>
+        </div>
+      )}
+
+      {mode === 'html' && (
         <div style={{ marginTop: 14 }}>
           <label className="field-label">Paste your design&apos;s HTML</label>
           <textarea

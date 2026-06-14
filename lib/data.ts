@@ -6,6 +6,7 @@ export type Page = {
   name: string
   html: string
   entry: string | null
+  source_url: string | null
   created_at: string
   updated_at: string
 }
@@ -44,12 +45,12 @@ export function getPage(slug: string): Page | undefined {
   return row ? plain<Page>(row) : undefined
 }
 
-export function createPage(name: string, html: string): Page {
+export function createPage(name: string, html: string, sourceUrl?: string): Page {
   const slug = makeId()
   const now = new Date().toISOString()
   db.prepare(
-    'INSERT INTO pages (slug, name, html, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(slug, name || 'Untitled', html || '', now, now)
+    'INSERT INTO pages (slug, name, html, source_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(slug, name || 'Untitled', html || '', sourceUrl || null, now, now)
   return getPage(slug)!
 }
 

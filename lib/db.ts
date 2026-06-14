@@ -33,6 +33,7 @@ function init(): DatabaseSync {
   // Add columns introduced after the first release (no-op if already present).
   const cols = (db.prepare('PRAGMA table_info(pages)').all() as { name: string }[]).map((c) => c.name)
   if (!cols.includes('entry')) db.exec('ALTER TABLE pages ADD COLUMN entry TEXT')
+  if (!cols.includes('source_url')) db.exec('ALTER TABLE pages ADD COLUMN source_url TEXT')
   return db
 }
 
