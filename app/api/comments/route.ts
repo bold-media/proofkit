@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { createComment, getComment, getPage, listComments } from '@/lib/data'
+import { emitCommentChange } from '@/lib/events'
 
 export async function GET(req: Request) {
   const slug = new URL(req.url).searchParams.get('page')
@@ -36,5 +37,6 @@ export async function POST(req: Request) {
     body: text.slice(0, 2000),
     parent_id: parentId,
   })
+  emitCommentChange(slug)
   return NextResponse.json(comment)
 }

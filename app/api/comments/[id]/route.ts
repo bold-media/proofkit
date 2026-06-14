@@ -4,9 +4,11 @@ import {
   COMMENT_STATUSES,
   type CommentStatus,
   deleteComment,
+  getComment,
   setCommentPosition,
   setCommentStatus,
 } from '@/lib/data'
+import { emitCommentChange } from '@/lib/events'
 import { isOwner } from '@/lib/owner'
 
 export const runtime = 'nodejs'
@@ -34,12 +36,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.x_pct === 'number' && typeof body.y_pct === 'number') {
     setCommentPosition(id, body.x_pct, body.y_pct)
   }
+  const slug = getComment(id)?.page_slug
+  if (slug) emitCommentChange(slug)
   return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isOwner())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
+  const slug = getComment(id)?.page_slug
   deleteComment(id)
+  if (slug) emitCommentChange(slug)
   return NextResponse.json({ ok: true })
 }

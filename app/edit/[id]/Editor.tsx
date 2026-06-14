@@ -56,7 +56,6 @@ export default function Editor({
     setPublicUrl(`${window.location.origin}/project/${page.slug}`)
   }, [page.slug])
 
-  // Poll for new client comments.
   async function loadComments() {
     try {
       const res = await fetch(`/api/comments?page=${page.slug}`)
@@ -66,9 +65,22 @@ export default function Editor({
       /* ignore */
     }
   }
+  // Live updates via SSE — new client feedback shows up instantly. A slow poll
+  // stays as a safety net (and the sole path if EventSource isn't available).
   useEffect(() => {
-    const t = setInterval(loadComments, 4000)
-    return () => clearInterval(t)
+    let es: EventSource | null = null
+    let poll: ReturnType<typeof setInterval>
+    try {
+      es = new EventSource(`/api/comments/stream?page=${page.slug}`)
+      es.onmessage = () => loadComments()
+      poll = setInterval(loadComments, 30000)
+    } catch {
+      poll = setInterval(loadComments, 4000)
+    }
+    return () => {
+      es?.close()
+      clearInterval(poll)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

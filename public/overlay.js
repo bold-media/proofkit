@@ -625,8 +625,23 @@
 
   load()
   maybeShowIntro()
-  // Reflect comments/replies left by others without a manual refresh.
-  setInterval(load, 6000)
+  // Live updates: an SSE stream pushes a tick whenever anyone changes a comment
+  // on this page, so feedback appears instantly. A slow poll stays as a safety
+  // net (and the only path if EventSource is unavailable).
+  ;(function connectLive() {
+    if (typeof EventSource === 'undefined') {
+      setInterval(load, 6000)
+      return
+    }
+    try {
+      var es = new EventSource(API + '/api/comments/stream?page=' + encodeURIComponent(slug))
+      es.onmessage = function () { load() }
+      // EventSource reconnects on its own; keep a slow safety poll regardless.
+      setInterval(load, 30000)
+    } catch (e) {
+      setInterval(load, 6000)
+    }
+  })()
 
   // Some designs re-render or replace the whole document after they boot,
   // which wipes our injected DOM and the stylesheet link — re-add whatever
