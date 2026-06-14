@@ -1,0 +1,189 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import type { Comment, Page } from '@/lib/data'
+
+export default function Editor({
+  page,
+  initialComments,
+}: {
+  page: Page
+  initialComments: Comment[]
+}) {
+  const router = useRouter()
+  const [name, setName] = useState(page.name)
+  const [html, setHtml] = useState(page.html)
+  const [comments, setComments] = useState<Comment[]>(initialComments)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [publicUrl, setPublicUrl] = useState('')
+  const frame = useRef<HTMLIFrameElement>(null)
+
+  useEffect(() => {
+    setPublicUrl(`${window.location.origin}/p/${page.slug}`)
+  }, [page.slug])
+
+  // Poll for new client comments.
+  async function loadComments() {
+    try {
+      const res = await fetch(`/api/comments?page=${page.slug}`)
+      const json = await res.json()
+      setComments(json.comments || [])
+    } catch {
+      /* ignore */
+    }
+  }
+  useEffect(() => {
+    const t = setInterval(loadComments, 4000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function save() {
+    await fetch(`/api/pages/${page.slug}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, html }),
+    })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+    if (frame.current) frame.current.src = `/p/${page.slug}?t=${Date.now()}`
+    router.refresh()
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(publicUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  async function resolve(id: string, resolved: boolean) {
+    setComments((cs) => cs.map((c) => (c.id === id ? { ...c, resolved: resolved ? 1 : 0 } : c)))
+    await fetch(`/api/comments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolved }),
+    })
+  }
+
+  async function removeComment(id: string) {
+    setComments((cs) => cs.filter((c) => c.id !== id))
+    await fetch(`/api/comments/${id}`, { method: 'DELETE' })
+  }
+
+  async function deletePage() {
+    if (!confirm('Delete this page and all its comments?')) return
+    await fetch(`/api/pages/${page.slug}`, { method: 'DELETE' })
+    router.push('/')
+  }
+
+  const openCount = comments.filter((c) => !c.resolved).length
+
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+        <input
+          className="input"
+          style={{ maxWidth: 380, fontWeight: 600 }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="row">
+          <button className="btn ghost" onClick={deletePage} style={{ color: 'var(--danger)' }}>
+            Delete
+          </button>
+          <button className="btn" onClick={save}>
+            {saved ? 'Saved ✓' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <label className="field-label">Live link to send your client</label>
+        <div className="row">
+          <input className="input" readOnly value={publicUrl} />
+          <button className="btn ghost" onClick={copyLink}>
+            {copied ? 'Copied ✓' : 'Copy'}
+          </button>
+          <a className="btn ghost" href={publicUrl} target="_blank" rel="noreferrer">
+            Open
+          </a>
+        </div>
+        <p className="muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
+          Anyone with this link can view the page and leave pinned comments — no login needed.
+        </p>
+      </div>
+
+      <div className="editor-grid">
+        <div>
+          <label className="field-label">Design HTML</label>
+          <textarea
+            className="textarea"
+            rows={16}
+            value={html}
+            placeholder="<!doctype html> …"
+            onChange={(e) => setHtml(e.target.value)}
+          />
+          <label className="field-label" style={{ marginTop: 16 }}>
+            Preview
+          </label>
+          <iframe ref={frame} className="preview-frame" src={`/p/${page.slug}`} title="Preview" />
+        </div>
+
+        <div>
+          <label className="field-label">
+            Comments {openCount > 0 && <span className="badge open">{openCount} open</span>}
+          </label>
+          {comments.length === 0 ? (
+            <p className="muted" style={{ fontSize: 14 }}>
+              No comments yet. Share the live link and feedback shows up here.
+            </p>
+          ) : (
+            comments.map((c, i) => (
+              <div key={c.id} className={c.resolved ? 'comment resolved' : 'comment'}>
+                <div className="comment-head">
+                  <span className="comment-pin">{i + 1}</span>
+                  <strong style={{ fontWeight: 600 }}>{c.author}</strong>
+                  <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>
+                    {new Date(c.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div style={{ fontSize: 14 }}>{c.body}</div>
+                <div className="row" style={{ marginTop: 8, gap: 14 }}>
+                  <button
+                    onClick={() => resolve(c.id, !c.resolved)}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: 'var(--accent)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      padding: 0,
+                    }}
+                  >
+                    {c.resolved ? 'Reopen' : 'Mark resolved'}
+                  </button>
+                  <button
+                    onClick={() => removeComment(c.id)}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: 'var(--muted)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      padding: 0,
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

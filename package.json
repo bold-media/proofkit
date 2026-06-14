@@ -1,0 +1,23 @@
+{
+  "name": "proofkit",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "next": "16.2.9",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "6.0.3"
+  }
+}
