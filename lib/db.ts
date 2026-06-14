@@ -14,6 +14,7 @@ function init(): DatabaseSync {
       slug TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       html TEXT NOT NULL DEFAULT '',
+      entry TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -29,6 +30,9 @@ function init(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS comments_page_idx ON comments (page_slug);
   `)
+  // Add columns introduced after the first release (no-op if already present).
+  const cols = (db.prepare('PRAGMA table_info(pages)').all() as { name: string }[]).map((c) => c.name)
+  if (!cols.includes('entry')) db.exec('ALTER TABLE pages ADD COLUMN entry TEXT')
   return db
 }
 

@@ -1,9 +1,11 @@
 import db, { makeId } from './db'
+import { removeSite } from './sites'
 
 export type Page = {
   slug: string
   name: string
   html: string
+  entry: string | null
   created_at: string
   updated_at: string
 }
@@ -64,9 +66,20 @@ export function updatePage(slug: string, fields: { name?: string; html?: string 
   )
 }
 
+// Mark a page as folder-hosted (entry = the main HTML file inside the folder),
+// or pass null to clear it back to a pasted-HTML page.
+export function setPageEntry(slug: string, entry: string | null): void {
+  db.prepare('UPDATE pages SET entry = ?, updated_at = ? WHERE slug = ?').run(
+    entry,
+    new Date().toISOString(),
+    slug,
+  )
+}
+
 export function deletePage(slug: string): void {
   db.prepare('DELETE FROM comments WHERE page_slug = ?').run(slug)
   db.prepare('DELETE FROM pages WHERE slug = ?').run(slug)
+  removeSite(slug)
 }
 
 export function listComments(slug: string): Comment[] {
