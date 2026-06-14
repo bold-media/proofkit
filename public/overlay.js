@@ -131,6 +131,7 @@
   document.body.appendChild(panel)
   var panelOpen = false
   var panelFilter = 'all'
+  var showResolved = false // resolved pins are hidden on the design until toggled on
 
   // Core look is also set inline via the CSSOM (not subject to CSP style-src),
   // so the always-visible bar stays styled even if overlay.css was stripped by
@@ -202,12 +203,40 @@
 
   function clamp01(v) { return Math.max(0, Math.min(100, v)) }
 
+  function initials(name) {
+    var p = String(name || '').trim().split(/\s+/)
+    return (((p[0] ? p[0][0] : '') + (p[1] ? p[1][0] : '')).toUpperCase() || '?').slice(0, 2)
+  }
+
   // Figma-style link: hovering a pin or its list item lights up the other one.
   function highlight(id, on) {
     var pin = layer.querySelector('.pk-pin[data-id="' + id + '"]')
     if (pin) pin.classList.toggle('pk-hi', on)
     var item = panel.querySelector('.pk-item[data-id="' + id + '"]')
     if (item) item.classList.toggle('pk-hi', on)
+  }
+
+  // Lightweight read-only peek of a comment when hovering its pin.
+  function hidePreview() {
+    var p = document.querySelector('.pk-preview')
+    if (p) p.remove()
+  }
+  function showPreview(c, pin) {
+    hidePreview()
+    if (mode) return // don't get in the way while placing comments
+    var pv = el('div', 'pk-preview')
+    var rs = repliesOf(c.id)
+    var st = STATUS[statusOf(c)]
+    pv.innerHTML =
+      '<div class="pk-pv-head"><span class="pk-dot" style="background:' + st.color + '"></span>' +
+      escapeHtml(c.author) + ' <span class="pk-time">· ' + timeAgo(c.created_at) + '</span></div>' +
+      '<div class="pk-pv-body">' + escapeHtml(c.body) + '</div>' +
+      (rs.length ? '<div class="pk-pv-meta">' + rs.length + (rs.length > 1 ? ' replies' : ' reply') + '</div>' : '')
+    document.body.appendChild(pv)
+    var r = pin.getBoundingClientRect()
+    var w = pv.offsetWidth, h = pv.offsetHeight
+    pv.style.left = Math.min(r.right + 10, window.innerWidth - w - 12) + 'px'
+    pv.style.top = Math.min(Math.max(r.top - 6, 12), window.innerHeight - h - 12) + 'px'
   }
 
   // Click a pin to open its thread. The owner can also drag it to reposition
@@ -222,6 +251,7 @@
       moved = false
       try { pin.setPointerCapture(e.pointerId) } catch (err) {}
       pin.style.cursor = 'grabbing'
+      hidePreview()
       e.preventDefault()
       e.stopPropagation()
     })
@@ -261,22 +291,34 @@
     })
     // Swallow the click the browser fires after a drag so nothing else reacts.
     pin.addEventListener('click', function (e) { e.stopPropagation() })
-    pin.addEventListener('mouseenter', function () { highlight(c.id, true) })
-    pin.addEventListener('mouseleave', function () { highlight(c.id, false) })
+    pin.addEventListener('mouseenter', function () { highlight(c.id, true); showPreview(c, pin) })
+    pin.addEventListener('mouseleave', function () { highlight(c.id, false); hidePreview() })
   }
 
   function render() {
     sizeLayer()
     layer.innerHTML = ''
     tops().forEach(function (c, i) {
-      var pin = el('button', 'pk-pin')
-      pin.textContent = i + 1
+      var s = statusOf(c)
+      // Resolved pins stay off the design (decluttered) until the toggle is on.
+      if (s === 'resolved' && !showResolved) return
+      var pin = el('button', 'pk-pin' + (s === 'resolved' ? ' resolved' : ''))
       pin.setAttribute('data-id', c.id)
       pin.style.left = c.x_pct + '%'
       pin.style.top = c.y_pct + '%'
-      pin.style.background = STATUS[statusOf(c)].color
+      pin.style.background = STATUS[s].color
       pin.style.cursor = 'grab'
-      pin.title = 'Drag to move · click to open'
+      pin.title = '#' + (i + 1) + ' · ' + c.author + ' · ' + STATUS[s].label + ' — drag to move, click to open'
+      // Avatar: author initials (a check once resolved).
+      var label = el('span', 'pk-pin-label')
+      label.textContent = s === 'resolved' ? '✓' : initials(c.author)
+      pin.appendChild(label)
+      var nr = repliesOf(c.id).length
+      if (nr > 0) {
+        var badge = el('span', 'pk-pin-badge')
+        badge.textContent = nr > 9 ? '9+' : nr
+        pin.appendChild(badge)
+      }
       attachPin(pin, c)
       layer.appendChild(pin)
     })
@@ -386,6 +428,7 @@
 
   function showThread(c, pin) {
     closePopovers()
+    hidePreview()
     var pop = el('div', 'pk-pop pk-thread')
     fillThread(pop, c)
     var rect = pin.getBoundingClientRect()
@@ -481,6 +524,12 @@
     })
     h += '</div>'
 
+    // Resolved pins are hidden on the design by default; let the viewer show them.
+    if (counts.resolved > 0) {
+      h += '<label class="pk-resolved-toggle"><input type="checkbox"' + (showResolved ? ' checked' : '') +
+        '/> Show resolved pins on the design</label>'
+    }
+
     // Open + In progress first, then resolved.
     var list = t.slice().sort(function (a, b) {
       return (statusOf(a) === 'resolved' ? 1 : 0) - (statusOf(b) === 'resolved' ? 1 : 0)
@@ -508,6 +557,8 @@
 
     panel.innerHTML = h
     panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
+    var rt = panel.querySelector('.pk-resolved-toggle input')
+    if (rt) rt.addEventListener('change', function () { showResolved = rt.checked; render() })
     panel.querySelectorAll('.pk-pf').forEach(function (b) {
       b.addEventListener('click', function () { panelFilter = b.getAttribute('data-f'); renderPanel() })
     })
@@ -518,6 +569,12 @@
         var c = byId(it.getAttribute('data-id'))
         if (!c) return
         var pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
+        // The pin may be hidden (resolved) — reveal it so we can jump to it.
+        if (!pin && statusOf(c) === 'resolved') {
+          showResolved = true
+          render()
+          pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
+        }
         if (pin) {
           try { pin.scrollIntoView({ block: 'center', inline: 'center' }) } catch (e) {}
           showThread(c, pin)
