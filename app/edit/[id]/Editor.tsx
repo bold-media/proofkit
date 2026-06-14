@@ -156,10 +156,6 @@ export default function Editor({
               />
             </>
           )}
-          <label className="field-label" style={{ marginTop: 16 }}>
-            Preview
-          </label>
-          <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
         </div>
 
         <div>
@@ -214,6 +210,11 @@ export default function Editor({
           )}
         </div>
       </div>
+
+      <label className="field-label" style={{ marginTop: 22 }}>
+        Preview
+      </label>
+      <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
     </div>
   )
 }
