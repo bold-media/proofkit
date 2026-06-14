@@ -71,12 +71,18 @@ h1 {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  flex-shrink: 0;
   border: none;
   background: var(--accent);
   color: #fff;
   font: inherit;
+  font-size: 14px;
   font-weight: 600;
+  /* Keep the label on one line so swapping "Copy" -> "Copied ✓" (or "Save" ->
+     "Saved ✓") never wraps and grows the button's height. */
+  white-space: nowrap;
   padding: 9px 16px;
   border-radius: 9px;
   cursor: pointer;
