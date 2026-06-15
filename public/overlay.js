@@ -147,6 +147,106 @@
     })
   }
 
+  // ---- @mentions ----
+  // Taggable people = the owner plus everyone who has commented on this design.
+  function mentionNames() {
+    var set = { owner: 'Owner' }
+    comments.forEach(function (c) { if (c.author) set[c.author.toLowerCase()] = c.author })
+    return Object.keys(set)
+      .map(function (k) { return set[k] })
+      .sort(function (a, b) { return b.length - a.length }) // longest first so "@John Doe" wins over "@John"
+  }
+  // Escape a comment body, highlighting any "@Name" that matches a known person.
+  function renderBody(text) {
+    var names = mentionNames()
+    var s = String(text)
+    var out = ''
+    for (var i = 0; i < s.length; ) {
+      if (s.charAt(i) === '@') {
+        var hit = null
+        for (var j = 0; j < names.length; j++) {
+          var n = names[j]
+          if (s.substr(i + 1, n.length).toLowerCase() === n.toLowerCase()) {
+            var after = s.charAt(i + 1 + n.length)
+            if (!/[A-Za-z0-9_]/.test(after)) { hit = n; break }
+          }
+        }
+        if (hit) {
+          out += '<span class="pk-mention">@' + escapeHtml(hit) + '</span>'
+          i += 1 + hit.length
+          continue
+        }
+      }
+      out += escapeHtml(s.charAt(i))
+      i++
+    }
+    return out
+  }
+  // The "@" the caret is currently typing, if any (allows spaces for full names).
+  function mentionQuery(input) {
+    var pos = input.selectionStart
+    var val = input.value.slice(0, pos)
+    var at = val.lastIndexOf('@')
+    if (at < 0) return null
+    if (at > 0 && !/\s/.test(val.charAt(at - 1))) return null // must start a token
+    var q = val.slice(at + 1)
+    if (/[\n@]/.test(q) || q.length > 30) return null
+    return { at: at, query: q }
+  }
+  // Attach an @mention autocomplete dropdown to a textarea/input.
+  function attachMentions(input) {
+    var box = null, items = [], active = 0, curAt = 0
+    function close() { if (box) { box.parentNode && box.parentNode.removeChild(box); box = null } }
+    function pick(name) {
+      var pos = input.selectionStart
+      var val = input.value
+      var insert = '@' + name + ' '
+      var before = val.slice(0, curAt)
+      input.value = before + insert + val.slice(pos)
+      var caret = before.length + insert.length
+      input.selectionStart = input.selectionEnd = caret
+      close(); input.focus()
+    }
+    function highlight() {
+      if (!box) return
+      for (var i = 0; i < box.children.length; i++) {
+        box.children[i].className = 'pk-mention-item' + (i === active ? ' on' : '')
+      }
+    }
+    function refresh() {
+      var q = mentionQuery(input)
+      if (!q) return close()
+      var ql = q.query.toLowerCase()
+      var matches = mentionNames().filter(function (n) { return n.toLowerCase().indexOf(ql) !== -1 })
+      if (!matches.length) return close()
+      matches = matches.slice(0, 6)
+      close()
+      curAt = q.at; items = matches; active = 0
+      box = el('div', 'pk-mention-menu')
+      matches.forEach(function (n) {
+        var it = el('div', 'pk-mention-item')
+        it.textContent = n
+        it.addEventListener('mousedown', function (e) { e.preventDefault(); pick(n) })
+        box.appendChild(it)
+      })
+      chromeDoc.body.appendChild(box)
+      var r = input.getBoundingClientRect()
+      box.style.left = r.left + 'px'
+      box.style.top = (r.bottom + 4) + 'px'
+      box.style.minWidth = Math.min(r.width, 240) + 'px'
+      highlight()
+    }
+    input.addEventListener('input', refresh)
+    input.addEventListener('keydown', function (e) {
+      if (!box) return
+      if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % items.length; highlight() }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + items.length) % items.length; highlight() }
+      else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(items[active]) }
+      else if (e.key === 'Escape') { e.preventDefault(); close() }
+    })
+    input.addEventListener('blur', function () { setTimeout(close, 150) })
+  }
+
   // ---- comment data helpers ----
   function tops() { return comments.filter(function (c) { return !c.parent_id }) }
   function repliesOf(id) { return comments.filter(function (c) { return c.parent_id === id }) }
@@ -305,7 +405,7 @@
     pv.innerHTML =
       '<div class="pk-pv-head"><span class="pk-dot" style="background:' + st.color + '"></span>' +
       escapeHtml(c.author) + ' <span class="pk-time">· ' + timeAgo(c.created_at) + '</span></div>' +
-      '<div class="pk-pv-body">' + escapeHtml(c.body) + '</div>' +
+      '<div class="pk-pv-body">' + renderBody(c.body) + '</div>' +
       (rs.length ? '<div class="pk-pv-meta">' + rs.length + (rs.length > 1 ? ' replies' : ' reply') + '</div>' : '')
     chromeDoc.body.appendChild(pv)
     var r = pin.getBoundingClientRect()
@@ -454,6 +554,7 @@
     positionPop(pop, clientX, clientY)
     var ta = pop.querySelector('.pk-text')
     ta.focus()
+    attachMentions(ta)
     pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
     pop.querySelector('.pk-send').addEventListener('click', function () {
       var name = savedName || (pop.querySelector('.pk-name') ? pop.querySelector('.pk-name').value.trim() : '')
@@ -491,7 +592,7 @@
       ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
       ' <span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
-      '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
+      '<div class="pk-cbody">' + renderBody(c.body) + '</div>'
 
     var rmap = {}
     ;(c.reactions || []).forEach(function (r) { rmap[r.emoji] = r })
@@ -509,7 +610,7 @@
       rs.forEach(function (r) {
         h += '<div class="pk-reply"><b>' + escapeHtml(r.author) +
           ' <span class="pk-time">· ' + timeAgo(r.created_at) + '</span></b>' +
-          '<span>' + escapeHtml(r.body) + '</span></div>'
+          '<span>' + renderBody(r.body) + '</span></div>'
       })
       h += '</div>'
     }
@@ -570,6 +671,7 @@
     pop.innerHTML = threadHtml(c)
     var savedName = localStorage.getItem(NAME_KEY) || ''
     var ta = pop.querySelector('.pk-text')
+    if (ta) attachMentions(ta)
     pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
 
     var navList = visibleTops()
@@ -716,7 +818,7 @@
           '<div class="pk-item-head"><span class="pk-dot" style="background:' + STATUS[s].color + '"></span>' +
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
-          '<div class="pk-item-body">' + escapeHtml(c.body) + '</div>' +
+          '<div class="pk-item-body">' + renderBody(c.body) + '</div>' +
           '<div class="pk-item-meta"><span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span> · ' +
           timeAgo(c.created_at) + (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
           '</button>'

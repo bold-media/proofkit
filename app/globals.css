@@ -344,6 +344,41 @@ h1 {
   margin-top: 14px;
 }
 
+/* @mentions in comment bodies + the reply autocomplete menu. */
+.mention {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+  border-radius: 5px;
+  padding: 0 3px;
+}
+.mention-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 180px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.14);
+  padding: 4px;
+  max-height: 200px;
+  overflow: auto;
+}
+.mention-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mention-item.on,
+.mention-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .row {
   display: flex;
   gap: 10px;

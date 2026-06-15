@@ -64,8 +64,12 @@ export async function POST(req: Request) {
   if (!owner) {
     const url = `${reqOrigin(req)}/edit/${slug}`
     const who = comment.author
+    // The client tagged the owner by name (@Owner) — call it out at the top.
+    const tagged = /@owner\b/i.test(text)
     let msg: string
-    if (parentId) {
+    if (tagged) {
+      msg = `🔔 ${who} tagged you on “${page.name}”\n\n“${text}”\n\n${url}`
+    } else if (parentId) {
       msg = `↩️ ${who} replied on “${page.name}”\n\n“${text}”\n\n${url}`
     } else {
       const dev = DEVICE_LABEL[device] || 'Desktop'

@@ -42,6 +42,10 @@
 .pk-pill{display:inline-block;color:#fff;font:600 11px sans-serif;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .pk-pill.sm{font-size:10px;padding:1px 7px}
 .pk-cbody{font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word;margin-top:2px}
+.pk-mention{color:#4f46e5;background:#eef2ff;font-weight:600;border-radius:5px;padding:0 3px}
+.pk-mention-menu{position:fixed;z-index:2147483647;background:#fff;border:1px solid #e6e8ec;border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;max-height:200px;overflow:auto;font-family:sans-serif}
+.pk-mention-item{padding:6px 10px;border-radius:6px;font-size:13px;color:#1c2024;cursor:pointer;white-space:nowrap}
+.pk-mention-item.on,.pk-mention-item:hover{background:#eef2ff;color:#4f46e5}
 .pk-time{color:#9aa1a9;font-weight:400}
 .pk-replies{margin:10px 0 2px;border-top:1px solid #eef0f3;padding-top:8px;display:flex;flex-direction:column;gap:8px;max-height:200px;overflow:auto}
 .pk-reply{font-size:13px;line-height:1.4}

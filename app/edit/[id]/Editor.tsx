@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
@@ -39,6 +39,41 @@ const STATUS_ORDER: CommentStatus[] = ['open', 'progress', 'resolved']
 function statusOf(c: Comment): CommentStatus {
   return (STATUS[c.status as CommentStatus] ? c.status : 'open') as CommentStatus
 }
+// Render a comment body, highlighting "@Name" tokens that match a known person.
+function highlightMentions(text: string, names: string[]): ReactNode {
+  if (!names.length || !text.includes('@')) return text
+  const sorted = [...names].sort((a, b) => b.length - a.length)
+  const out: ReactNode[] = []
+  let buf = ''
+  let key = 0
+  for (let i = 0; i < text.length; ) {
+    if (text[i] === '@') {
+      const hit = sorted.find(
+        (n) =>
+          text.substr(i + 1, n.length).toLowerCase() === n.toLowerCase() &&
+          !/[A-Za-z0-9_]/.test(text.charAt(i + 1 + n.length)),
+      )
+      if (hit) {
+        if (buf) {
+          out.push(buf)
+          buf = ''
+        }
+        out.push(
+          <span key={key++} className="mention">
+            @{hit}
+          </span>,
+        )
+        i += 1 + hit.length
+        continue
+      }
+    }
+    buf += text[i]
+    i++
+  }
+  if (buf) out.push(buf)
+  return out
+}
+
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   const m = Math.floor(ms / 60000)
@@ -69,6 +104,7 @@ export default function Editor({
   const [requirePw, setRequirePw] = useState(page.hasPassword)
   const [pwValue, setPwValue] = useState(page.viewPassword || '')
   const [memberCount, setMemberCount] = useState(0)
+  const [memberNames, setMemberNames] = useState<string[]>([])
   const [accessOpen, setAccessOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -87,7 +123,11 @@ export default function Editor({
   useEffect(() => {
     fetch(`/api/pages/${page.slug}/members`)
       .then((r) => (r.ok ? r.json() : { members: [] }))
-      .then((j) => setMemberCount((j.members || []).length))
+      .then((j) => {
+        const m = j.members || []
+        setMemberCount(m.length)
+        setMemberNames(m.map((x: { name: string }) => x.name).filter(Boolean))
+      })
       .catch(() => {})
   }, [page.slug])
 
@@ -254,6 +294,15 @@ export default function Editor({
     { key: 'tablet', label: 'Tablet', n: deviceCounts.tablet },
     { key: 'mobile', label: 'Mobile', n: deviceCounts.mobile },
   ]
+
+  // Taggable people: the owner, invited clients, and anyone who has commented.
+  const peopleNames = Array.from(
+    new Map(
+      ['Owner', ...memberNames, ...comments.map((c) => c.author)]
+        .filter(Boolean)
+        .map((n) => [n.toLowerCase(), n]),
+    ).values(),
+  )
 
   const isPrivate = requirePw || memberCount > 0
   // Compact summary of who can open the link, shown on the badge + collapsed header.
@@ -430,6 +479,7 @@ export default function Editor({
                       comment={c}
                       number={numberById.get(c.id) || 0}
                       replies={repliesByParent[c.id] || []}
+                      names={peopleNames}
                       defaultOpen={false}
                       onStatus={(s) => setStatus(c.id, s)}
                       onReply={(body) => reply(c.id, body)}
@@ -488,10 +538,117 @@ export default function Editor({
   )
 }
 
+// A reply input with an @mention autocomplete. Enter submits (Shift+Enter for a
+// newline); when the suggestion menu is open, Enter/Tab pick the highlighted name.
+function MentionInput({
+  value,
+  onChange,
+  onEnter,
+  names,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onEnter: () => void
+  names: string[]
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [matches, setMatches] = useState<string[]>([])
+  const [active, setActive] = useState(0)
+  const [at, setAt] = useState(0)
+  const ref = useRef<HTMLInputElement>(null)
+
+  function refresh(val: string, caret: number) {
+    const upto = val.slice(0, caret)
+    const a = upto.lastIndexOf('@')
+    if (a < 0 || (a > 0 && !/\s/.test(upto.charAt(a - 1)))) return setOpen(false)
+    const q = upto.slice(a + 1)
+    if (/[\n@]/.test(q) || q.length > 30) return setOpen(false)
+    const ms = names.filter((n) => n.toLowerCase().includes(q.toLowerCase())).slice(0, 6)
+    if (!ms.length) return setOpen(false)
+    setMatches(ms)
+    setActive(0)
+    setAt(a)
+    setOpen(true)
+  }
+
+  function pick(name: string) {
+    const el = ref.current
+    const caret = el?.selectionStart ?? value.length
+    const before = value.slice(0, at)
+    const insert = '@' + name + ' '
+    onChange(before + insert + value.slice(caret))
+    setOpen(false)
+    requestAnimationFrame(() => {
+      const p = (before + insert).length
+      el?.focus()
+      el?.setSelectionRange(p, p)
+    })
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        ref={ref}
+        className="input"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          refresh(e.target.value, e.target.selectionStart || 0)
+        }}
+        onKeyDown={(e) => {
+          if (open) {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              return setActive((a) => (a + 1) % matches.length)
+            }
+            if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              return setActive((a) => (a - 1 + matches.length) % matches.length)
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+              e.preventDefault()
+              return pick(matches[active])
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              return setOpen(false)
+            }
+          }
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            onEnter()
+          }
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (
+        <div className="mention-menu">
+          {matches.map((n, i) => (
+            <div
+              key={n}
+              className={i === active ? 'mention-item on' : 'mention-item'}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                pick(n)
+              }}
+            >
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CommentCard({
   comment,
   number,
   replies,
+  names,
   defaultOpen,
   onStatus,
   onReply,
@@ -501,6 +658,7 @@ function CommentCard({
   comment: Comment
   number: number
   replies: Comment[]
+  names: string[]
   defaultOpen: boolean
   onStatus: (s: CommentStatus) => void
   onReply: (body: string) => void
@@ -540,12 +698,14 @@ function CommentCard({
 
       {!open ? (
         <div className="comment-snippet">
-          {comment.body}
+          {highlightMentions(comment.body, names)}
           {replies.length > 0 && ` · ${replies.length} ${replies.length > 1 ? 'replies' : 'reply'}`}
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6 }}>{comment.body}</div>
+          <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6 }}>
+            {highlightMentions(comment.body, names)}
+          </div>
 
           <div className="creactions">
             {REACTION_EMOJI.map((em) => {
@@ -583,25 +743,14 @@ function CommentCard({
                   <div className="creply-author">
                     {r.author} <span className="ctime">· {timeAgo(r.created_at)}</span>
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{r.body}</div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{highlightMentions(r.body, names)}</div>
                 </div>
               ))}
             </div>
           )}
 
           <div className="reply-form">
-            <input
-              className="input"
-              placeholder="Reply…"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  send()
-                }
-              }}
-            />
+            <MentionInput value={text} onChange={setText} onEnter={send} names={names} placeholder="Reply…" />
             <button className="btn ghost" onClick={send} disabled={!text.trim()}>
               Reply
             </button>
