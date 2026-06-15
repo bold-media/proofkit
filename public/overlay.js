@@ -173,6 +173,7 @@
   chromeDoc.body.appendChild(panel)
   var panelOpen = false
   var panelFilter = 'all'
+  var panelDevice = 'all' // which device's comments the panel lists
   var showResolved = false // resolved pins are hidden on the design until toggled on
   var currentId = null // the comment whose thread is open (for prev/next stepping)
   var currentDevice = 'desktop' // which device view this frame is showing
@@ -655,9 +656,27 @@
       return
     }
 
-    // Filter chips with counts, so a long list (100+) stays manageable.
-    var counts = { all: t.length, open: 0, progress: 0, resolved: 0 }
-    t.forEach(function (c) { counts[statusOf(c)]++ })
+    // Device tabs: group comments by the size they were placed in. Picking a
+    // size also switches the design frame to it so the pins line up.
+    var dcounts = { all: t.length, desktop: 0, tablet: 0, mobile: 0 }
+    t.forEach(function (c) { dcounts[deviceOf(c)]++ })
+    var dtabs = [
+      { k: 'all', label: 'All' },
+      { k: 'desktop', label: 'Desktop' },
+      { k: 'tablet', label: 'Tablet' },
+      { k: 'mobile', label: 'Mobile' },
+    ]
+    h += '<div class="pk-dtabs">'
+    dtabs.forEach(function (d) {
+      h += '<button class="pk-dtab' + (panelDevice === d.k ? ' on' : '') + '" data-d="' + d.k + '">' +
+        d.label + ' <span>' + dcounts[d.k] + '</span></button>'
+    })
+    h += '</div>'
+
+    // Status filter chips with counts (within the chosen device).
+    var inDevice = panelDevice === 'all' ? t : t.filter(function (c) { return deviceOf(c) === panelDevice })
+    var counts = { all: inDevice.length, open: 0, progress: 0, resolved: 0 }
+    inDevice.forEach(function (c) { counts[statusOf(c)]++ })
     var chips = [
       { k: 'all', label: 'All' },
       { k: 'open', label: 'Open' },
@@ -678,7 +697,7 @@
     }
 
     // Open + In progress first, then resolved.
-    var list = t.slice().sort(function (a, b) {
+    var list = inDevice.slice().sort(function (a, b) {
       return (statusOf(a) === 'resolved' ? 1 : 0) - (statusOf(b) === 'resolved' ? 1 : 0)
     })
     if (panelFilter !== 'all') list = list.filter(function (c) { return statusOf(c) === panelFilter })
@@ -706,6 +725,19 @@
     panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
     var rt = panel.querySelector('.pk-resolved-toggle input')
     if (rt) rt.addEventListener('change', function () { showResolved = rt.checked; render() })
+    panel.querySelectorAll('.pk-dtab').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var d = b.getAttribute('data-d')
+        panelDevice = d
+        // Picking a specific size switches the design frame to match its pins.
+        if (d !== 'all' && d !== currentDevice) {
+          currentDevice = d
+          try { parent.postMessage({ pk: 'switch-device', device: d }, '*') } catch (e) {}
+          render()
+        }
+        renderPanel()
+      })
+    })
     panel.querySelectorAll('.pk-pf').forEach(function (b) {
       b.addEventListener('click', function () { panelFilter = b.getAttribute('data-f'); renderPanel() })
     })
