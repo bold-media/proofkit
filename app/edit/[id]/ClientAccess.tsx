@@ -55,6 +55,19 @@ export default function ClientAccess({ slug }: { slug: string }) {
     })
   }
 
+  async function resetPw(memberEmail: string) {
+    setShare(null)
+    setErr('')
+    const r = await fetch(`/api/pages/${slug}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: memberEmail, reset: true }),
+    })
+    const j = await r.json()
+    if (r.ok && j.sharePassword) setShare({ email: memberEmail, password: j.sharePassword })
+    else setErr(j.error || 'Could not reset')
+  }
+
   return (
     <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
       <label className="field-label">Client access (instead of the password)</label>
@@ -83,7 +96,7 @@ export default function ClientAccess({ slug }: { slug: string }) {
       {err && <p style={{ color: 'var(--danger)', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
       {share && (
         <div className="snippet" style={{ marginTop: 10 }}>
-          Account created — share these with {share.email}: <strong>email</strong> {share.email} ·{' '}
+          Share these with {share.email} (shown once): <strong>email</strong> {share.email} ·{' '}
           <strong>password</strong> {share.password}
         </div>
       )}
@@ -99,12 +112,20 @@ export default function ClientAccess({ slug }: { slug: string }) {
                 <strong style={{ fontWeight: 600 }}>{m.name}</strong>{' '}
                 <span className="muted">· {m.email}</span>
               </span>
-              <button
-                onClick={() => remove(m.id)}
-                style={{ border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}
-              >
-                Remove
-              </button>
+              <span className="row" style={{ gap: 14 }}>
+                <button
+                  onClick={() => resetPw(m.email)}
+                  style={{ border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}
+                >
+                  Reset password
+                </button>
+                <button
+                  onClick={() => remove(m.id)}
+                  style={{ border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}
+                >
+                  Remove
+                </button>
+              </span>
             </div>
           ))}
         </div>

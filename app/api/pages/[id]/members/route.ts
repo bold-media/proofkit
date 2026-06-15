@@ -35,13 +35,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const existing = getClientByEmail(email)
+  const reset = !!b.reset
   let sharePassword: string | null = null
   let clientId: string
-  if (existing && !givenPw) {
+  if (existing && !givenPw && !reset) {
     clientId = existing.id
   } else {
     const pw = givenPw || makeId(10)
-    const client = upsertClient(email, name || email, pw)
+    // On reset, keep the client's chosen name; only the password changes.
+    const client = upsertClient(email, name || existing?.name || email, pw)
     clientId = client.id
     if (!givenPw) sharePassword = pw // generated — surface it so the owner can share
   }
