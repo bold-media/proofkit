@@ -841,7 +841,11 @@
     var inPanel = t.closest('.pk-panel')
     var inPop = t.closest('.pk-pop')
     var keepPop = inPop || t.closest('.pk-pin') || t.closest('.pk-item')
-    if (!keepPop && chromeDoc.querySelector('.pk-pop')) closePopovers()
+    // Close one layer per click: an open comment first, then the drawer.
+    if (!keepPop && chromeDoc.querySelector('.pk-pop')) {
+      closePopovers()
+      return
+    }
     if (panelOpen && !inPanel) togglePanel()
   }
   // Placing clicks are stopped earlier (capture + stopImmediatePropagation), so
@@ -858,7 +862,9 @@
     var k = e.key
     if (k === 'Escape') {
       hidePreview()
+      // Same layering: close an open comment first, then the drawer, then exit.
       if (chromeDoc.querySelector('.pk-pop')) closePopovers()
+      else if (panelOpen) togglePanel()
       else if (mode) setMode(false)
     } else if (k === 'c' || k === 'C') {
       dismissIntro()
