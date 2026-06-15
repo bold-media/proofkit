@@ -174,6 +174,7 @@
   var panelOpen = false
   var panelFilter = 'all'
   var panelDevice = 'all' // which device's comments the panel lists
+  var panelName = '' // free-text author filter for the panel list
   var showResolved = false // resolved pins are hidden on the design until toggled on
   var currentId = null // the comment whose thread is open (for prev/next stepping)
   var currentDevice = 'desktop' // which device view this frame is showing
@@ -656,6 +657,8 @@
       return
     }
 
+    h += '<div class="pk-search-wrap"><input class="pk-search" placeholder="Filter by name…" /></div>'
+
     // Device tabs: group comments by the size they were placed in. Picking a
     // size also switches the design frame to it so the pins line up.
     var dcounts = { all: t.length, desktop: 0, tablet: 0, mobile: 0 }
@@ -709,7 +712,7 @@
       list.forEach(function (c) {
         var s = statusOf(c)
         var nr = repliesOf(c.id).length
-        h += '<button class="pk-item" data-id="' + c.id + '">' +
+        h += '<button class="pk-item" data-id="' + c.id + '" data-author="' + escapeHtml(c.author) + '">' +
           '<div class="pk-item-head"><span class="pk-dot" style="background:' + STATUS[s].color + '"></span>' +
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
@@ -723,6 +726,22 @@
 
     panel.innerHTML = h
     panel.querySelector('.pk-panel-close').addEventListener('click', togglePanel)
+
+    // Author filter: hide non-matching items live (no re-render → keeps focus).
+    function applyNameFilter() {
+      var q = panelName.trim().toLowerCase()
+      panel.querySelectorAll('.pk-item').forEach(function (it) {
+        var a = (it.getAttribute('data-author') || '').toLowerCase()
+        it.style.display = !q || a.indexOf(q) !== -1 ? '' : 'none'
+      })
+    }
+    var search = panel.querySelector('.pk-search')
+    if (search) {
+      search.value = panelName
+      search.addEventListener('input', function () { panelName = search.value; applyNameFilter() })
+    }
+    applyNameFilter()
+
     var rt = panel.querySelector('.pk-resolved-toggle input')
     if (rt) rt.addEventListener('change', function () { showResolved = rt.checked; render() })
     panel.querySelectorAll('.pk-dtab').forEach(function (b) {

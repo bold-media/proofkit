@@ -70,6 +70,7 @@ export default function Editor({
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [filter, setFilter] = useState<'all' | CommentStatus>('all')
+  const [nameFilter, setNameFilter] = useState('')
   const frame = useRef<HTMLIFrameElement>(null)
   const isFolder = !!page.entry
 
@@ -213,8 +214,10 @@ export default function Editor({
     const rank = (c: Comment) => (statusOf(c) === 'resolved' ? 1 : 0)
     return rank(a) - rank(b)
   })
-  const visibleTops =
-    filter === 'all' ? sortedTops : sortedTops.filter((c) => statusOf(c) === filter)
+  const nameQ = nameFilter.trim().toLowerCase()
+  const visibleTops = sortedTops
+    .filter((c) => filter === 'all' || statusOf(c) === filter)
+    .filter((c) => !nameQ || c.author.toLowerCase().includes(nameQ))
   // Pin numbers follow creation order (matching the pins on the design), so they
   // stay stable when the list is sorted or filtered.
   const numberById = new Map(tops.map((c, i) => [c.id, i + 1]))
@@ -323,6 +326,13 @@ export default function Editor({
             </p>
           ) : (
             <>
+              <input
+                className="input"
+                style={{ marginBottom: 10 }}
+                placeholder="Filter by name…"
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+              />
               <div className="comments-filter">
                 {FILTERS.map((f) => (
                   <button
@@ -337,7 +347,7 @@ export default function Editor({
               </div>
               {visibleTops.length === 0 ? (
                 <p className="muted" style={{ fontSize: 14 }}>
-                  No {filter === 'all' ? '' : filter === 'progress' ? 'in-progress ' : `${filter} `}comments.
+                  {nameQ ? `No comments from “${nameFilter.trim()}”.` : 'No comments here.'}
                 </p>
               ) : (
                 <div className="comments-scroll">
