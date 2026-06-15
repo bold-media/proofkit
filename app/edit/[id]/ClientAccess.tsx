@@ -59,8 +59,8 @@ export default function ClientAccess({ slug }: { slug: string }) {
     <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
       <label className="field-label">Client access (instead of the password)</label>
       <p className="muted" style={{ fontSize: 13, margin: '0 0 10px' }}>
-        Invite a client to log in — they skip the password and comment under their name. They set their own name on
-        first login, and only see projects you add them to.
+        Inviting a client makes this design <strong>private</strong> — only invited clients (plus anyone with the
+        password, if you set one) can open it. They log in, set their own name, and comment as themselves.
       </p>
       <div className="row">
         <input

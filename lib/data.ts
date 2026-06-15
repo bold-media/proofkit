@@ -336,6 +336,10 @@ export function isProjectMember(slug: string, clientId: string): boolean {
     .prepare('SELECT 1 FROM project_members WHERE page_slug = ? AND client_id = ?')
     .get(slug, clientId)
 }
+// A project with any invited client is private — non-members must log in.
+export function pageHasMembers(slug: string): boolean {
+  return !!db.prepare('SELECT 1 FROM project_members WHERE page_slug = ? LIMIT 1').get(slug)
+}
 export function listProjectMembers(slug: string): Client[] {
   return db
     .prepare(
