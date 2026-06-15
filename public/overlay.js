@@ -10,6 +10,29 @@
   var comments = []
   var mode = false
 
+  // When the design is shown inside the device-frame wrapper, the overlay's
+  // chrome (bar, panel, popovers) renders into the HOST page so it's full-size
+  // and consistent across device widths — only the pins stay in the frame.
+  // The wrapper marks the injected script with data-proof-framed. Same-origin
+  // lets us reach the parent document and our own iframe's offset directly.
+  var FRAMED = !!(me && me.getAttribute('data-proof-framed'))
+  var chromeDoc, chromeWin
+  try {
+    chromeDoc = FRAMED ? window.parent.document : document
+    chromeWin = FRAMED ? window.parent : window
+  } catch (e) {
+    FRAMED = false
+    chromeDoc = document
+    chromeWin = window
+  }
+  function frameRect() {
+    if (FRAMED && window.frameElement) {
+      var r = window.frameElement.getBoundingClientRect()
+      return { left: r.left, top: r.top }
+    }
+    return { left: 0, top: 0 }
+  }
+
   // A stable per-browser id so each person toggles their own reactions.
   var CID = (function () {
     var id = ''
@@ -78,13 +101,18 @@
   // inline <style> can't strip our UI). Some designs replace the whole
   // <html> element after they boot (SPA/bundler hydration), which wipes this
   // link — so ensureCss() is also called from the self-heal loop below.
-  function ensureCss() {
-    if (document.querySelector('link[data-proof-css]')) return
-    var link = document.createElement('link')
+  function ensureCssIn(doc) {
+    if (doc.querySelector('link[data-proof-css]')) return
+    var link = doc.createElement('link')
     link.rel = 'stylesheet'
     link.href = API + '/overlay.css'
     link.setAttribute('data-proof-css', '1')
-    ;(document.head || document.documentElement).appendChild(link)
+    ;(doc.head || doc.documentElement).appendChild(link)
+  }
+  function ensureCss() {
+    // Pins live in this frame's document; the chrome may live in the host page.
+    ensureCssIn(document)
+    if (FRAMED) ensureCssIn(chromeDoc)
   }
   ensureCss()
 
@@ -129,6 +157,8 @@
   function numberOf(c) { var t = tops(); for (var i = 0; i < t.length; i++) if (t[i].id === c.id) return i + 1; return '?' }
 
   // ---- elements ----
+  // Pins overlay the design (this frame's document); the bar/panel are chrome
+  // and go in the host document (the page itself when not framed).
   var layer = el('div', 'pk-layer')
   document.body.appendChild(layer)
 
@@ -137,10 +167,10 @@
   var btn = el('button', 'pk-btn')
   bar.appendChild(listBtn)
   bar.appendChild(btn)
-  document.body.appendChild(bar)
+  chromeDoc.body.appendChild(bar)
 
   var panel = el('div', 'pk-panel')
-  document.body.appendChild(panel)
+  chromeDoc.body.appendChild(panel)
   var panelOpen = false
   var panelFilter = 'all'
   var showResolved = false // resolved pins are hidden on the design until toggled on
@@ -189,7 +219,7 @@
 
   // ---- intro tip ----
   function dismissIntro() {
-    var n = document.querySelector('.pk-intro')
+    var n = chromeDoc.querySelector('.pk-intro')
     if (n) n.remove()
     try { localStorage.setItem('pk_intro_seen', '1') } catch (e) {}
   }
@@ -197,7 +227,7 @@
     try { if (localStorage.getItem('pk_intro_seen')) return } catch (e) {}
     var tip = el('div', 'pk-intro')
     tip.innerHTML = '<b>Leave feedback here</b><br>Click “Leave feedback”, then click anywhere on the design to drop a comment.'
-    document.body.appendChild(tip)
+    chromeDoc.body.appendChild(tip)
     setTimeout(dismissIntro, 9000)
   }
 
@@ -215,7 +245,7 @@
   window.addEventListener('resize', function () { render() })
 
   function closePopovers() {
-    document.querySelectorAll('.pk-pop,.pk-hint').forEach(function (p) { p.remove() })
+    chromeDoc.querySelectorAll('.pk-pop,.pk-hint').forEach(function (p) { p.remove() })
   }
 
   function load() {
@@ -261,7 +291,7 @@
 
   // Lightweight read-only peek of a comment when hovering its pin.
   function hidePreview() {
-    var p = document.querySelector('.pk-preview')
+    var p = chromeDoc.querySelector('.pk-preview')
     if (p) p.remove()
   }
   function showPreview(c, pin) {
@@ -275,11 +305,12 @@
       escapeHtml(c.author) + ' <span class="pk-time">· ' + timeAgo(c.created_at) + '</span></div>' +
       '<div class="pk-pv-body">' + escapeHtml(c.body) + '</div>' +
       (rs.length ? '<div class="pk-pv-meta">' + rs.length + (rs.length > 1 ? ' replies' : ' reply') + '</div>' : '')
-    document.body.appendChild(pv)
+    chromeDoc.body.appendChild(pv)
     var r = pin.getBoundingClientRect()
+    var off = frameRect()
     var w = pv.offsetWidth, h = pv.offsetHeight
-    pv.style.left = Math.min(r.right + 10, window.innerWidth - w - 12) + 'px'
-    pv.style.top = Math.min(Math.max(r.top - 6, 12), window.innerHeight - h - 12) + 'px'
+    pv.style.left = Math.min(r.right + off.left + 10, chromeWin.innerWidth - w - 12) + 'px'
+    pv.style.top = Math.min(Math.max(r.top + off.top - 6, 12), chromeWin.innerHeight - h - 12) + 'px'
   }
 
   // Click a pin to open its thread. The owner can also drag it to reposition
@@ -374,12 +405,13 @@
   // ---- comment mode (persistent: stays on until you click "Done") ----
   function setMode(on) {
     mode = on
+    // Crosshair goes on the design (this frame); the hint banner is chrome.
     document.body.style.cursor = mode ? 'crosshair' : ''
-    var hint = document.querySelector('.pk-hint')
+    var hint = chromeDoc.querySelector('.pk-hint')
     if (mode && !hint) {
       hint = el('div', 'pk-hint')
       hint.textContent = 'Click anywhere on the design to drop a comment · click “Done” when finished'
-      document.body.appendChild(hint)
+      chromeDoc.body.appendChild(hint)
     } else if (!mode && hint) {
       hint.remove()
     }
@@ -399,10 +431,13 @@
 
   function clamp(v, max) { return Math.max(12, Math.min(v, max)) }
   function positionPop(pop, clientX, clientY) {
-    document.body.appendChild(pop)
+    // clientX/Y are in this frame's viewport; shift by the frame's offset in the
+    // host so popovers land over the pin even when chrome lives in the host.
+    chromeDoc.body.appendChild(pop)
     var w = pop.offsetWidth, h = pop.offsetHeight
-    pop.style.left = clamp(clientX, window.innerWidth - w - 12) + 'px'
-    pop.style.top = clamp(clientY, window.innerHeight - h - 12) + 'px'
+    var off = frameRect()
+    pop.style.left = clamp(clientX + off.left, chromeWin.innerWidth - w - 12) + 'px'
+    pop.style.top = clamp(clientY + off.top, chromeWin.innerHeight - h - 12) + 'px'
   }
 
   // ---- new comment composer ----
@@ -743,14 +778,14 @@
 
   // ---- keyboard shortcuts ----
   // C: toggle comment mode · N/P: next/previous comment · Esc: close / exit.
-  document.addEventListener('keydown', function (e) {
+  function onKey(e) {
     var t = e.target
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
     if (e.metaKey || e.ctrlKey || e.altKey) return
     var k = e.key
     if (k === 'Escape') {
       hidePreview()
-      if (document.querySelector('.pk-pop')) closePopovers()
+      if (chromeDoc.querySelector('.pk-pop')) closePopovers()
       else if (mode) setMode(false)
     } else if (k === 'c' || k === 'C') {
       dismissIntro()
@@ -763,7 +798,11 @@
       e.preventDefault()
       step(-1)
     }
-  })
+  }
+  // Listen in both documents so shortcuts work whether focus is on the design
+  // (this frame) or the chrome (host).
+  document.addEventListener('keydown', onKey)
+  if (FRAMED) chromeDoc.addEventListener('keydown', onKey)
 
   load()
   maybeShowIntro()
@@ -790,8 +829,8 @@
   // is missing and re-apply the inline styles so the UI never comes back broken.
   setInterval(function () {
     ensureCss()
-    if (!document.body.contains(bar)) document.body.appendChild(bar)
-    if (!document.body.contains(panel)) document.body.appendChild(panel)
+    if (!chromeDoc.body.contains(bar)) chromeDoc.body.appendChild(bar)
+    if (!chromeDoc.body.contains(panel)) chromeDoc.body.appendChild(panel)
     if (!document.body.contains(layer)) {
       document.body.appendChild(layer)
       render()

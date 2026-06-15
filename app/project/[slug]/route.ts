@@ -44,7 +44,8 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 .pk-dev-stage.framed{padding:20px}
 #pk-frame{flex:none;width:100%;border:0;background:#fff}
 #pk-frame.framed{border:1px solid #d7dae0;border-radius:14px;box-shadow:0 8px 30px rgba(16,24,40,.14)}
-</style></head>
+</style>
+<link rel="stylesheet" href="/overlay.css" data-proof-css="1"></head>
 <body>
 <div class="pk-dev-bar">
 <button data-w="full" class="on">Desktop</button>
@@ -52,7 +53,7 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 <button data-w="390">Mobile</button>
 </div>
 <div class="pk-dev-stage" id="pk-stage">
-<iframe id="pk-frame" title="Design preview" src="/project/${slug}?raw=1" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
+<iframe id="pk-frame" title="Design preview" src="/project/${slug}?raw=1&framed=1" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
 </div>
 <script>
 (function(){
@@ -137,7 +138,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   // Tell the overlay whether the viewer is the owner, so it can show owner-only
   // controls (status changes, delete). The API still enforces this server-side.
   const ownerAttr = (await isOwner()) ? ' data-proof-owner="1"' : ''
-  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}></script>`
+  // In framed mode the overlay renders its chrome into the host (wrapper) page.
+  const framedAttr = new URL(req.url).searchParams.get('framed') === '1' ? ' data-proof-framed="1"' : ''
+  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}></script>`
 
   if (baseTag) {
     html = /<head[^>]*>/i.test(html)
