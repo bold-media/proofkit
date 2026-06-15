@@ -59,6 +59,11 @@ function init(): DatabaseSync {
     db.exec("UPDATE comments SET status = 'resolved' WHERE resolved = 1")
   }
   if (!ccols.includes('parent_id')) db.exec('ALTER TABLE comments ADD COLUMN parent_id TEXT')
+  // Which preview width a comment was placed in. Existing rows default to
+  // 'desktop' (they were placed on the full-width design).
+  if (!ccols.includes('device')) {
+    db.exec("ALTER TABLE comments ADD COLUMN device TEXT NOT NULL DEFAULT 'desktop'")
+  }
   return db
 }
 

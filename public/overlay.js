@@ -145,6 +145,17 @@
   var panelFilter = 'all'
   var showResolved = false // resolved pins are hidden on the design until toggled on
   var currentId = null // the comment whose thread is open (for prev/next stepping)
+  var currentDevice = 'desktop' // which device view this frame is showing
+  var DEVICE_LABEL = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' }
+  function deviceOf(c) { return c.device || 'desktop' }
+
+  // The device-frame wrapper tells us which size is shown; pins are scoped to it.
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.pk === 'device' && e.data.device && e.data.device !== currentDevice) {
+      currentDevice = e.data.device
+      render()
+    }
+  })
 
   // Core look is also set inline via the CSSOM (not subject to CSP style-src),
   // so the always-visible bar stays styled even if overlay.css was stripped by
@@ -332,6 +343,8 @@
     layer.innerHTML = ''
     tops().forEach(function (c, i) {
       var s = statusOf(c)
+      // Only show pins placed in the device size currently being viewed.
+      if (deviceOf(c) !== currentDevice) return
       // Resolved pins stay off the design (decluttered) until the toggle is on.
       if (s === 'resolved' && !showResolved) return
       var pin = el('button', 'pk-pin' + (s === 'resolved' ? ' resolved' : ''))
@@ -414,7 +427,7 @@
       fetch(API + '/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text }),
+        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text, device: currentDevice }),
       })
         .then(function (r) { return r.json() })
         .then(function (c) { if (c && c.id) comments.push(c); render() })
@@ -492,7 +505,9 @@
 
   // ---- walk-through stepper ----
   function visibleTops() {
-    return tops().filter(function (c) { return showResolved || statusOf(c) !== 'resolved' })
+    return tops().filter(function (c) {
+      return deviceOf(c) === currentDevice && (showResolved || statusOf(c) !== 'resolved')
+    })
   }
   function openStep(c) {
     var pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
@@ -644,8 +659,8 @@
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
           '<div class="pk-item-body">' + escapeHtml(c.body) + '</div>' +
-          '<div class="pk-item-meta">' + timeAgo(c.created_at) +
-          (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
+          '<div class="pk-item-meta"><span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span> · ' +
+          timeAgo(c.created_at) + (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
           '</button>'
       })
     }
@@ -664,6 +679,12 @@
       it.addEventListener('click', function () {
         var c = byId(it.getAttribute('data-id'))
         if (!c) return
+        // Jumping to a comment from another device size switches the frame to it.
+        if (deviceOf(c) !== currentDevice) {
+          currentDevice = deviceOf(c)
+          try { parent.postMessage({ pk: 'switch-device', device: currentDevice }, '*') } catch (e) {}
+          render()
+        }
         var pin = layer.querySelector('.pk-pin[data-id="' + c.id + '"]')
         // The pin may be hidden (resolved) — reveal it so we can jump to it.
         if (!pin && statusOf(c) === 'resolved') {

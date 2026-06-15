@@ -446,6 +446,16 @@ h1 {
   margin-left: auto;
 }
 
+.cdev {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 5px;
+}
+
 .creactions {
   display: flex;
   flex-wrap: wrap;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
+import { DEVICE_LABEL } from '@/lib/devices'
 import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
@@ -448,6 +449,7 @@ function CommentCard({
         <span className="ctime" title={new Date(comment.created_at).toLocaleString()}>
           {timeAgo(comment.created_at)}
         </span>
+        <span className="cdev">{DEVICE_LABEL[comment.device] || 'Desktop'}</span>
         <span className="cbadge" style={{ background: STATUS[status].color }}>
           {STATUS[status].label}
         </span>

@@ -57,13 +57,23 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 <script>
 (function(){
 var stage=document.getElementById('pk-stage'),frame=document.getElementById('pk-frame'),btns=document.querySelectorAll('.pk-dev-bar button');
+var current='full';
+function deviceOf(w){return w==='768'?'tablet':w==='390'?'mobile':'desktop'}
+function widthOf(d){return d==='tablet'?'768':d==='mobile'?'390':'full'}
+function postDevice(){try{frame.contentWindow.postMessage({pk:'device',device:deviceOf(current)},'*')}catch(e){}}
 function apply(w){
+current=w;
 btns.forEach(function(b){b.classList.toggle('on',b.getAttribute('data-w')===w)});
 if(w==='full'){frame.style.width='100%';frame.classList.remove('framed');stage.classList.remove('framed');}
 else{frame.style.width=w+'px';frame.classList.add('framed');stage.classList.add('framed');}
 try{localStorage.setItem('pk_device_'+${s},w)}catch(e){}
+postDevice();
 }
 btns.forEach(function(b){b.addEventListener('click',function(){apply(b.getAttribute('data-w'))})});
+// Re-announce the active device whenever the design (re)loads in the frame.
+frame.addEventListener('load',postDevice);
+// The overlay can ask to switch device (clicking a comment from another size).
+window.addEventListener('message',function(e){if(e.data&&e.data.pk==='switch-device'&&e.data.device){apply(widthOf(e.data.device))}});
 var saved='full';try{saved=localStorage.getItem('pk_device_'+${s})||'full'}catch(e){}
 apply(saved);
 })();

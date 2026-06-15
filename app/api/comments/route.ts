@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { createComment, getComment, getPage, listComments } from '@/lib/data'
+import { DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
 import { emitCommentChange } from '@/lib/events'
 
 export async function GET(req: Request) {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
     parentId = parent.id
   }
 
+  const device = DEVICE_SIZES.includes(body.device as DeviceSize) ? (body.device as string) : 'desktop'
   const comment = createComment({
     page_slug: slug,
     x_pct: parentId ? 0 : Number(body.x_pct) || 0,
@@ -38,6 +40,7 @@ export async function POST(req: Request) {
     author: String(body.author || 'Guest').slice(0, 80),
     body: text.slice(0, 2000),
     parent_id: parentId,
+    device,
   })
   emitCommentChange(slug)
   return NextResponse.json(comment)
