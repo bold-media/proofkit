@@ -231,9 +231,15 @@
       })
       chromeDoc.body.appendChild(box)
       var r = input.getBoundingClientRect()
-      box.style.left = r.left + 'px'
-      box.style.top = (r.bottom + 4) + 'px'
       box.style.minWidth = Math.min(r.width, 240) + 'px'
+      // Flip above the input when there isn't room below (e.g. the reply box sits
+      // near the bottom of the screen), and clamp to the viewport either way.
+      var mh = box.offsetHeight, mw = box.offsetWidth
+      var vh = chromeWin.innerHeight, vw = chromeWin.innerWidth
+      var top = r.bottom + 4
+      if (top + mh > vh - 8 && r.top - 4 - mh > 8) top = r.top - 4 - mh
+      box.style.top = Math.max(8, Math.min(top, vh - mh - 8)) + 'px'
+      box.style.left = Math.max(8, Math.min(r.left, vw - mw - 8)) + 'px'
       highlight()
     }
     input.addEventListener('input', refresh)

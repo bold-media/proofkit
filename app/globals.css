@@ -353,10 +353,8 @@ h1 {
   padding: 0 3px;
 }
 .mention-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
+  position: fixed;
+  z-index: 1000;
   min-width: 180px;
   background: var(--panel);
   border: 1px solid var(--border);

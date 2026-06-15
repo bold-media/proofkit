@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
@@ -557,7 +557,25 @@ function MentionInput({
   const [matches, setMatches] = useState<string[]>([])
   const [active, setActive] = useState(0)
   const [at, setAt] = useState(0)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const ref = useRef<HTMLInputElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Position the dropdown next to the input, flipping above it when there isn't
+  // room below (the input may sit low inside the scrollable comments list).
+  useLayoutEffect(() => {
+    if (!open || !ref.current || !menuRef.current) return
+    const r = ref.current.getBoundingClientRect()
+    const mh = menuRef.current.offsetHeight
+    const mw = menuRef.current.offsetWidth
+    const vh = window.innerHeight
+    const vw = window.innerWidth
+    let top = r.bottom + 4
+    if (top + mh > vh - 8 && r.top - 4 - mh > 8) top = r.top - 4 - mh
+    top = Math.max(8, Math.min(top, vh - mh - 8))
+    const left = Math.max(8, Math.min(r.left, vw - mw - 8))
+    setPos({ top, left, width: r.width })
+  }, [open, matches])
 
   function refresh(val: string, caret: number) {
     const upto = val.slice(0, caret)
@@ -625,7 +643,16 @@ function MentionInput({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
       {open && (
-        <div className="mention-menu">
+        <div
+          ref={menuRef}
+          className="mention-menu"
+          style={{
+            top: pos ? pos.top : -9999,
+            left: pos ? pos.left : -9999,
+            minWidth: Math.min(pos?.width ?? 180, 240),
+            visibility: pos ? 'visible' : 'hidden',
+          }}
+        >
           {matches.map((n, i) => (
             <div
               key={n}
