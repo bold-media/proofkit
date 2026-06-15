@@ -59,8 +59,8 @@ export default function ClientAccess({ slug }: { slug: string }) {
     <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
       <label className="field-label">Client access (instead of the password)</label>
       <p className="muted" style={{ fontSize: 13, margin: '0 0 10px' }}>
-        Invite a client to log in — they skip the password on this design and comment under their name. They only
-        see projects you add them to.
+        Invite a client to log in — they skip the password and comment under their name. They set their own name on
+        first login, and only see projects you add them to.
       </p>
       <div className="row">
         <input
@@ -70,7 +70,12 @@ export default function ClientAccess({ slug }: { slug: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <input className="input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="input"
+          placeholder="Name (optional)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <button className="btn" onClick={add} disabled={busy || !email.trim()}>
           {busy ? '…' : 'Add'}
         </button>

@@ -264,11 +264,11 @@ export function ownerSession(): string | null {
 }
 
 // ---- Client accounts & per-project membership ----
-export type Client = { id: string; email: string; name: string; created_at: string }
+export type Client = { id: string; email: string; name: string; must_setup: boolean; created_at: string }
 
 function toClient(row: unknown): Client {
-  const r = plain<Client & { password_hash?: string; session_token?: string }>(row)
-  return { id: r.id, email: r.email, name: r.name, created_at: r.created_at }
+  const r = plain<{ id: string; email: string; name: string; created_at: string; must_setup?: number }>(row)
+  return { id: r.id, email: r.email, name: r.name, must_setup: !!r.must_setup, created_at: r.created_at }
 }
 
 export function getClientByEmail(email: string): Client | undefined {
@@ -281,13 +281,15 @@ export function getClientBySession(token: string): Client | undefined {
   return row ? toClient(row) : undefined
 }
 
-// Create a client, or update the password/name of an existing one (same email).
+// Owner invites a client: create the account, or reset an existing one's
+// password. Flags must_setup so the client is prompted to choose their own
+// name + password on first login.
 export function upsertClient(email: string, name: string, password: string): Client {
   const e = email.trim().toLowerCase()
   const existing = db.prepare('SELECT id FROM clients WHERE email = ?').get(e) as { id: string } | undefined
   if (existing) {
-    db.prepare('UPDATE clients SET name = ?, password_hash = ? WHERE id = ?').run(
-      name.trim(),
+    db.prepare('UPDATE clients SET name = ?, password_hash = ?, must_setup = 1 WHERE id = ?').run(
+      name.trim() || e,
       hashPassword(password),
       existing.id,
     )
@@ -295,9 +297,16 @@ export function upsertClient(email: string, name: string, password: string): Cli
   }
   const id = makeId(10)
   db.prepare(
-    'INSERT INTO clients (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO clients (id, email, name, password_hash, must_setup, created_at) VALUES (?, ?, ?, ?, 1, ?)',
   ).run(id, e, name.trim() || e, hashPassword(password), new Date().toISOString())
   return toClient(db.prepare('SELECT * FROM clients WHERE id = ?').get(id))
+}
+
+// First-login: the client sets their own display name; clears the setup flag.
+export function completeClientSetup(id: string, name: string): void {
+  const n = name.trim().slice(0, 80)
+  if (n) db.prepare('UPDATE clients SET name = ?, must_setup = 0 WHERE id = ?').run(n, id)
+  else db.prepare('UPDATE clients SET must_setup = 0 WHERE id = ?').run(id)
 }
 
 // Verify credentials and rotate the session token; returns it for the cookie.

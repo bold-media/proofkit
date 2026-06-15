@@ -45,6 +45,7 @@ function init(): DatabaseSync {
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       session_token TEXT,
+      must_setup INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS project_members (
@@ -82,6 +83,11 @@ function init(): DatabaseSync {
   }
   // Ties a comment to a logged-in client account (null for the owner/guests).
   if (!ccols.includes('client_id')) db.exec('ALTER TABLE comments ADD COLUMN client_id TEXT')
+  // Whether a client still needs to set their own name + password (first login).
+  const clcols = (db.prepare('PRAGMA table_info(clients)').all() as { name: string }[]).map((c) => c.name)
+  if (clcols.length && !clcols.includes('must_setup')) {
+    db.exec('ALTER TABLE clients ADD COLUMN must_setup INTEGER NOT NULL DEFAULT 0')
+  }
   return db
 }
 

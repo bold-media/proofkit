@@ -35,9 +35,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Wrong email or password' }, { status: 401 })
   }
 
+  // First login (owner-created account) → let them set their own name first.
+  const dest = result.client.must_setup ? `/client/setup?next=${encodeURIComponent(next)}` : next
   const res = isForm
-    ? new NextResponse(null, { status: 303, headers: { Location: next } })
-    : NextResponse.json({ ok: true, name: result.client.name })
+    ? new NextResponse(null, { status: 303, headers: { Location: dest } })
+    : NextResponse.json({ ok: true, name: result.client.name, needsSetup: result.client.must_setup, next: dest })
   res.cookies.set(CLIENT_COOKIE, result.token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
