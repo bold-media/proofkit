@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server'
 
 import { createComment, getComment, getPage, listComments } from '@/lib/data'
-import { DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
+import { DEVICE_SIZES, DEVICE_LABEL, type DeviceSize } from '@/lib/devices'
 import { emitCommentChange } from '@/lib/events'
+import { notify } from '@/lib/notify'
+import { isOwner } from '@/lib/owner'
+
+function reqOrigin(req: Request): string {
+  const h = req.headers
+  const host = h.get('x-forwarded-host') || h.get('host')
+  const proto = h.get('x-forwarded-proto') || 'https'
+  return host ? `${proto}://${host}` : ''
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -17,9 +26,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const slug = String(body.page_slug || '')
   const text = String(body.body || '').trim()
-  if (!slug || !getPage(slug) || !text) {
+  const page = getPage(slug)
+  if (!slug || !page || !text) {
     return NextResponse.json({ error: 'Invalid comment' }, { status: 400 })
   }
+  const owner = await isOwner()
 
   // A reply threads under an existing top-level comment on the same page and
   // carries no pin coordinates of its own.
@@ -43,5 +54,20 @@ export async function POST(req: Request) {
     device,
   })
   emitCommentChange(slug)
+
+  // Notify the owner of new client feedback (never their own comments). Fire and
+  // forget — a failed/slow notification must not affect the comment response.
+  if (!owner) {
+    const url = `${reqOrigin(req)}/edit/${slug}`
+    const who = comment.author
+    let msg: string
+    if (parentId) {
+      msg = `↩️ ${who} replied on “${page.name}”\n\n“${text}”\n\n${url}`
+    } else {
+      const dev = DEVICE_LABEL[device] || 'Desktop'
+      msg = `💬 New comment on “${page.name}” from ${who} (${dev})\n\n“${text}”\n\n${url}`
+    }
+    void notify(msg)
+  }
   return NextResponse.json(comment)
 }

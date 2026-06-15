@@ -5,6 +5,7 @@ import { isOwner } from '@/lib/owner'
 import NewPage from './NewPage'
 import PageList from './PageList'
 import AccountControls from './AccountControls'
+import NotifySettings from './NotifySettings'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +41,10 @@ export default async function Home() {
             entry: p.entry,
           }))}
         />
+      </div>
+
+      <div style={{ marginTop: 28 }}>
+        <NotifySettings />
       </div>
     </div>
   )
