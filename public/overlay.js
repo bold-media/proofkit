@@ -452,6 +452,7 @@
     }
     h += '<div class="pk-meta"><b>#' + numberOf(c) + '</b> · ' + escapeHtml(c.author) +
       ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
+      ' <span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
       '<div class="pk-cbody">' + escapeHtml(c.body) + '</div>'
 
