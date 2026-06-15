@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
-import { DEVICE_LABEL } from '@/lib/devices'
+import { DEVICE_LABEL, DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
 import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
@@ -70,6 +70,7 @@ export default function Editor({
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [filter, setFilter] = useState<'all' | CommentStatus>('all')
+  const [deviceFilter, setDeviceFilter] = useState<'all' | DeviceSize>('all')
   const [nameFilter, setNameFilter] = useState('')
   const frame = useRef<HTMLIFrameElement>(null)
   const isFolder = !!page.entry
@@ -214,8 +215,10 @@ export default function Editor({
     const rank = (c: Comment) => (statusOf(c) === 'resolved' ? 1 : 0)
     return rank(a) - rank(b)
   })
+  const deviceOf = (c: Comment) => (DEVICE_SIZES.includes(c.device as DeviceSize) ? c.device : 'desktop')
   const nameQ = nameFilter.trim().toLowerCase()
   const visibleTops = sortedTops
+    .filter((c) => deviceFilter === 'all' || deviceOf(c) === deviceFilter)
     .filter((c) => filter === 'all' || statusOf(c) === filter)
     .filter((c) => !nameQ || c.author.toLowerCase().includes(nameQ))
   // Pin numbers follow creation order (matching the pins on the design), so they
@@ -226,6 +229,14 @@ export default function Editor({
     { key: 'open', label: 'Open', n: counts.open },
     { key: 'progress', label: 'In progress', n: counts.progress },
     { key: 'resolved', label: 'Resolved', n: counts.resolved },
+  ]
+  const deviceCounts = { desktop: 0, tablet: 0, mobile: 0 } as Record<DeviceSize, number>
+  tops.forEach((c) => (deviceCounts[deviceOf(c) as DeviceSize] += 1))
+  const DEVICE_TABS: { key: 'all' | DeviceSize; label: string; n: number }[] = [
+    { key: 'all', label: 'All', n: tops.length },
+    { key: 'desktop', label: 'Desktop', n: deviceCounts.desktop },
+    { key: 'tablet', label: 'Tablet', n: deviceCounts.tablet },
+    { key: 'mobile', label: 'Mobile', n: deviceCounts.mobile },
   ]
 
   return (
@@ -326,6 +337,17 @@ export default function Editor({
             </p>
           ) : (
             <>
+              <div className="device-tabs">
+                {DEVICE_TABS.map((d) => (
+                  <button
+                    key={d.key}
+                    className={deviceFilter === d.key ? 'dtab on' : 'dtab'}
+                    onClick={() => setDeviceFilter(d.key)}
+                  >
+                    {d.label} <span className="count">{d.n}</span>
+                  </button>
+                ))}
+              </div>
               <input
                 className="input"
                 style={{ marginBottom: 10 }}
@@ -347,7 +369,7 @@ export default function Editor({
               </div>
               {visibleTops.length === 0 ? (
                 <p className="muted" style={{ fontSize: 14 }}>
-                  {nameQ ? `No comments from “${nameFilter.trim()}”.` : 'No comments here.'}
+                  {nameQ ? `No comments from “${nameFilter.trim()}”.` : 'No comments match these filters.'}
                 </p>
               ) : (
                 <div className="comments-scroll">

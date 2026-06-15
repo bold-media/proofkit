@@ -309,6 +309,44 @@ h1 {
 
 /* Comments section that scales to many items: a sticky filter bar + a
    scroll area so 100+ comments don't push the page endlessly long. */
+.device-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dtab {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 4px 9px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.dtab:hover {
+  color: var(--text);
+}
+
+.dtab.on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.dtab .count {
+  opacity: 0.55;
+  font-size: 12px;
+}
+
+.dtab.on .count {
+  opacity: 0.9;
+}
+
 .comments-filter {
   display: flex;
   flex-wrap: wrap;
