@@ -833,6 +833,10 @@
   function closeOnOutside(e) {
     var t = e.target
     if (!t || !t.closest) return
+    // A control inside the panel (device tab, status chip, resolved toggle) may
+    // have re-rendered the panel and detached this element — that's not an
+    // "outside" click, so leave the panel/popovers open.
+    if (t.isConnected === false) return
     if (t.closest('.pk-bar') || t.closest('.pk-dev-bar')) return
     var inPanel = t.closest('.pk-panel')
     var inPop = t.closest('.pk-pop')

@@ -216,6 +216,10 @@ export default function Editor({
     return rank(a) - rank(b)
   })
   const deviceOf = (c: Comment) => (DEVICE_SIZES.includes(c.device as DeviceSize) ? c.device : 'desktop')
+  // Status chip counts are scoped to the selected device tab.
+  const deviceTops = deviceFilter === 'all' ? tops : tops.filter((c) => deviceOf(c) === deviceFilter)
+  const statusCounts = { open: 0, progress: 0, resolved: 0 } as Record<CommentStatus, number>
+  deviceTops.forEach((c) => (statusCounts[statusOf(c)] += 1))
   const nameQ = nameFilter.trim().toLowerCase()
   const visibleTops = sortedTops
     .filter((c) => deviceFilter === 'all' || deviceOf(c) === deviceFilter)
@@ -225,10 +229,10 @@ export default function Editor({
   // stay stable when the list is sorted or filtered.
   const numberById = new Map(tops.map((c, i) => [c.id, i + 1]))
   const FILTERS: { key: 'all' | CommentStatus; label: string; n: number }[] = [
-    { key: 'all', label: 'All', n: tops.length },
-    { key: 'open', label: 'Open', n: counts.open },
-    { key: 'progress', label: 'In progress', n: counts.progress },
-    { key: 'resolved', label: 'Resolved', n: counts.resolved },
+    { key: 'all', label: 'All', n: deviceTops.length },
+    { key: 'open', label: 'Open', n: statusCounts.open },
+    { key: 'progress', label: 'In progress', n: statusCounts.progress },
+    { key: 'resolved', label: 'Resolved', n: statusCounts.resolved },
   ]
   const deviceCounts = { desktop: 0, tablet: 0, mobile: 0 } as Record<DeviceSize, number>
   tops.forEach((c) => (deviceCounts[deviceOf(c) as DeviceSize] += 1))
