@@ -22,6 +22,55 @@ ${bad ? '<div class="err">Wrong password — try again.</div>' : ''}
 <button type="submit">View design</button></form></body></html>`
 }
 
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
+}
+
+// The live page wraps the design in a resizable device frame so viewers can
+// preview it at desktop / tablet / mobile widths. The design itself (with the
+// comment overlay) is loaded inside the iframe via ?raw=1, so its own
+// responsive CSS reacts to the real frame width.
+function frameHtml(slug: string, name: string): string {
+  const s = JSON.stringify(slug)
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(name)}</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.pk-dev-bar{flex:none;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;background:#fff;border-bottom:1px solid #e6e8ec;box-shadow:0 1px 3px rgba(16,24,40,.04);z-index:2}
+.pk-dev-bar button{border:1px solid transparent;background:none;color:#5f5e5a;font:600 13px/1 inherit;padding:8px 14px;border-radius:8px;cursor:pointer}
+.pk-dev-bar button:hover{background:#f1f2f4}
+.pk-dev-bar button.on{background:#eef2ff;color:#4f46e5}
+.pk-dev-stage{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;align-items:stretch}
+.pk-dev-stage.framed{padding:20px}
+#pk-frame{flex:none;width:100%;border:0;background:#fff}
+#pk-frame.framed{border:1px solid #d7dae0;border-radius:14px;box-shadow:0 8px 30px rgba(16,24,40,.14)}
+</style></head>
+<body>
+<div class="pk-dev-bar">
+<button data-w="full" class="on">Desktop</button>
+<button data-w="768">Tablet</button>
+<button data-w="390">Mobile</button>
+</div>
+<div class="pk-dev-stage" id="pk-stage">
+<iframe id="pk-frame" title="Design preview" src="/project/${slug}?raw=1" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
+</div>
+<script>
+(function(){
+var stage=document.getElementById('pk-stage'),frame=document.getElementById('pk-frame'),btns=document.querySelectorAll('.pk-dev-bar button');
+function apply(w){
+btns.forEach(function(b){b.classList.toggle('on',b.getAttribute('data-w')===w)});
+if(w==='full'){frame.style.width='100%';frame.classList.remove('framed');stage.classList.remove('framed');}
+else{frame.style.width=w+'px';frame.classList.add('framed');stage.classList.add('framed');}
+try{localStorage.setItem('pk_device_'+${s},w)}catch(e){}
+}
+btns.forEach(function(b){b.addEventListener('click',function(){apply(b.getAttribute('data-w'))})});
+var saved='full';try{saved=localStorage.getItem('pk_device_'+${s})||'full'}catch(e){}
+apply(saved);
+})();
+</script>
+</body></html>`
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const page = getPage(slug)
@@ -44,6 +93,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
       })
     }
+  }
+
+  // Normal visits get the device-frame wrapper; the wrapper's iframe (and the
+  // editor preview) request the bare design + overlay with ?raw=1.
+  const raw = new URL(req.url).searchParams.get('raw') === '1'
+  if (!raw) {
+    return new Response(frameHtml(slug, page.name), {
+      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    })
   }
 
   let html: string

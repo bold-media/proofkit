@@ -143,7 +143,7 @@ export default function Editor({
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
-    if (frame.current) frame.current.src = `/project/${page.slug}?t=${Date.now()}`
+    if (frame.current) frame.current.src = `/project/${page.slug}?raw=1&t=${Date.now()}`
     router.refresh()
   }
 
@@ -151,7 +151,7 @@ export default function Editor({
     setUploading(true)
     try {
       await uploadDesign(page.slug, files)
-      if (frame.current) frame.current.src = `/project/${page.slug}?t=${Date.now()}`
+      if (frame.current) frame.current.src = `/project/${page.slug}?raw=1&t=${Date.now()}`
       router.refresh()
     } catch (e) {
       alert((e as Error).message)
@@ -368,7 +368,7 @@ export default function Editor({
         <strong>“Comments”</strong> to open the list. Everything shows up here too — set a status or reply
         from either place.
       </p>
-      <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}`} title="Preview" />
+      <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}?raw=1`} title="Preview" />
 
       {confirmDel && (
         <div
