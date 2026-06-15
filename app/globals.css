@@ -286,6 +286,64 @@ h1 {
   color: var(--accent);
 }
 
+/* Editor header: back link + at-a-glance access state. */
+.back-link {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.back-link:hover {
+  color: var(--text);
+}
+
+.access-badge {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.access-badge.private {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Collapsible "Access & privacy" section inside the live-link card. */
+.access-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 0 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.access-toggle .chev {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+.access-toggle.open .chev {
+  transform: rotate(90deg);
+}
+.access-toggle .muted {
+  margin-left: auto;
+}
+.access-body {
+  margin-top: 14px;
+}
+
 .row {
   display: flex;
   gap: 10px;

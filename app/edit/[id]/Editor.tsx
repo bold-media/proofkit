@@ -68,6 +68,8 @@ export default function Editor({
   const [uploading, setUploading] = useState(false)
   const [requirePw, setRequirePw] = useState(page.hasPassword)
   const [pwValue, setPwValue] = useState(page.viewPassword || '')
+  const [memberCount, setMemberCount] = useState(0)
+  const [accessOpen, setAccessOpen] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [filter, setFilter] = useState<'all' | CommentStatus>('all')
@@ -78,6 +80,15 @@ export default function Editor({
 
   useEffect(() => {
     setPublicUrl(`${window.location.origin}/project/${page.slug}`)
+  }, [page.slug])
+
+  // Seed the access badge with the invited-client count so it's accurate even
+  // before the "Access & privacy" section (which mounts ClientAccess) is opened.
+  useEffect(() => {
+    fetch(`/api/pages/${page.slug}/members`)
+      .then((r) => (r.ok ? r.json() : { members: [] }))
+      .then((j) => setMemberCount((j.members || []).length))
+      .catch(() => {})
   }, [page.slug])
 
   async function loadComments() {
@@ -244,15 +255,30 @@ export default function Editor({
     { key: 'mobile', label: 'Mobile', n: deviceCounts.mobile },
   ]
 
+  const isPrivate = requirePw || memberCount > 0
+  // Compact summary of who can open the link, shown on the badge + collapsed header.
+  const accessParts: string[] = []
+  if (requirePw) accessParts.push('password')
+  if (memberCount > 0) accessParts.push(`${memberCount} client${memberCount > 1 ? 's' : ''}`)
+  const accessSummary = isPrivate ? accessParts.join(' + ') : 'Anyone with the link'
+
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-        <input
-          className="input"
-          style={{ maxWidth: 380, fontWeight: 600 }}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <a href="/" className="back-link">
+        ← Pages
+      </a>
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
+        <div className="row" style={{ flex: 1, minWidth: 0, gap: 10 }}>
+          <input
+            className="input"
+            style={{ maxWidth: 340, fontWeight: 600 }}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <span className={isPrivate ? 'access-badge private' : 'access-badge'}>
+            {isPrivate ? '🔒 Private' : 'Public'}
+          </span>
+        </div>
         <div className="row">
           <button className="btn ghost" onClick={() => setConfirmDel(true)} style={{ color: 'var(--danger)' }}>
             Delete
@@ -275,38 +301,56 @@ export default function Editor({
           </a>
         </div>
         <p className="muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
-          Anyone with this link can view the page and leave pinned comments — no login needed.
+          {isPrivate
+            ? 'This design is private — only people with the password or an invited client can open it.'
+            : 'Anyone with this link can view the page and leave pinned comments — no login needed.'}
         </p>
 
-        <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={requirePw}
-              onChange={(e) => setRequirePw(e.target.checked)}
-            />
-            <span className="track" />
-            Require a password to view this link
-          </label>
-          {requirePw && (
-            <div style={{ marginTop: 12 }}>
-              <PasswordInput
-                value={pwValue}
-                onChange={setPwValue}
-                placeholder="Password clients will enter"
-                initialVisible
-                maxWidth={320}
-              />
-            </div>
-          )}
-          <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
-            {requirePw
-              ? 'Clients must enter this to view the design — it stays visible here so you can copy and share it. Click Save to apply.'
-              : 'The link is open to anyone who has it. Click Save after changing this.'}
-          </p>
-        </div>
+        <button
+          type="button"
+          className={accessOpen ? 'access-toggle open' : 'access-toggle'}
+          onClick={() => setAccessOpen((o) => !o)}
+        >
+          <span className="chev" aria-hidden>
+            ▸
+          </span>
+          <span style={{ fontWeight: 600 }}>Access &amp; privacy</span>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {accessSummary}
+          </span>
+        </button>
 
-        <ClientAccess slug={page.slug} />
+        {accessOpen && (
+          <div className="access-body">
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={requirePw}
+                onChange={(e) => setRequirePw(e.target.checked)}
+              />
+              <span className="track" />
+              Require a password to view this link
+            </label>
+            {requirePw && (
+              <div style={{ marginTop: 12 }}>
+                <PasswordInput
+                  value={pwValue}
+                  onChange={setPwValue}
+                  placeholder="Password clients will enter"
+                  initialVisible
+                  maxWidth={320}
+                />
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
+              {requirePw
+                ? 'Clients must enter this to view the design — it stays visible here so you can copy and share it. Click Save to apply.'
+                : 'The link is open to anyone who has it. Click Save after changing this.'}
+            </p>
+
+            <ClientAccess slug={page.slug} onCountChange={setMemberCount} />
+          </div>
+        )}
       </div>
 
       <div className="editor-grid">

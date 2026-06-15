@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react'
 
 type Member = { id: string; email: string; name: string }
 
-export default function ClientAccess({ slug }: { slug: string }) {
+export default function ClientAccess({
+  slug,
+  onCountChange,
+}: {
+  slug: string
+  onCountChange?: (n: number) => void
+}) {
   const [members, setMembers] = useState<Member[]>([])
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -24,6 +30,11 @@ export default function ClientAccess({ slug }: { slug: string }) {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // Keep the parent's access badge in sync with the invited-client count.
+  useEffect(() => {
+    onCountChange?.(members.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members.length])
 
   async function add() {
     setBusy(true)
@@ -70,10 +81,9 @@ export default function ClientAccess({ slug }: { slug: string }) {
 
   return (
     <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 14 }}>
-      <label className="field-label">Client access (instead of the password)</label>
+      <label className="field-label">Invited clients</label>
       <p className="muted" style={{ fontSize: 13, margin: '0 0 10px' }}>
-        Inviting a client makes this design <strong>private</strong> — only invited clients (plus anyone with the
-        password, if you set one) can open it. They log in, set their own name, and comment as themselves.
+        Invited clients log in, set their own name, and comment as themselves — no shared password needed.
       </p>
       <div className="row">
         <input
