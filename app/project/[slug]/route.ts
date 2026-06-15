@@ -1,25 +1,42 @@
 import { cookies } from 'next/headers'
 
-import { getPage, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { getPage, isProjectMember, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { currentClient } from '@/lib/client'
 import { isOwner } from '@/lib/owner'
 import { readSiteFile } from '@/lib/sites'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-function gateHtml(slug: string, bad: boolean): string {
+function gateHtml(slug: string, bad: boolean, loginBad: boolean, signedInName: string | null): string {
+  const next = `/project/${slug}`
+  // Client already signed in (just not a member here) → only the password path.
+  const loginBlock = signedInName
+    ? `<p>Signed in as <b>${esc(signedInName)}</b>, but you don't have access to this design yet. Enter the access password, or ask the owner to invite you.</p>`
+    : `<form method="post" action="/api/client/login">
+<input type="hidden" name="next" value="${next}" />
+<input type="email" name="email" placeholder="Email" autocomplete="username" />
+<input type="password" name="password" placeholder="Password" autocomplete="current-password" style="margin-top:8px" />
+${loginBad ? '<div class="err">Wrong email or password.</div>' : ''}
+<button type="submit">Log in</button></form>
+<div class="sep">or use the access password</div>`
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Protected design</title>
-<style>body{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7f9;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
-.box{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:28px;max-width:340px;width:90%}
+<style>body{font-family:ui-sans-serif,system-ui,sans-serif;background:#f6f7f9;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:20px}
+.box{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:28px;max-width:340px;width:100%}
 h1{font-size:18px;margin:0 0 6px}p{color:#6b7280;font-size:14px;margin:0 0 16px}
 input{width:100%;padding:10px 12px;border:1px solid #e6e8ec;border-radius:9px;font:inherit;box-sizing:border-box}
 button{width:100%;margin-top:12px;padding:11px;border:none;border-radius:9px;background:#4f46e5;color:#fff;font:inherit;font-weight:600;cursor:pointer}
-.err{color:#dc2626;font-size:13px;margin-top:8px}</style></head>
-<body><form class="box" method="post" action="/api/project/${slug}/unlock">
-<h1>This design is password-protected</h1><p>Enter the password to view it.</p>
-<input type="password" name="password" autofocus placeholder="Password" />
+.err{color:#dc2626;font-size:13px;margin-top:8px}
+.sep{display:flex;align-items:center;gap:10px;color:#9aa1a9;font-size:12px;margin:18px 0}
+.sep::before,.sep::after{content:"";flex:1;height:1px;background:#e6e8ec}</style></head>
+<body><div class="box">
+<h1>This design is private</h1><p>Log in if you've been invited, or enter the access password.</p>
+${loginBlock}
+<form method="post" action="/api/project/${slug}/unlock">
+<input type="password" name="password" placeholder="Access password" />
 ${bad ? '<div class="err">Wrong password — try again.</div>' : ''}
-<button type="submit">View design</button></form></body></html>`
+<button type="submit">View design</button></form>
+</div></body></html>`
 }
 
 function esc(s: string): string {
@@ -93,14 +110,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     })
   }
 
-  // Per-link password gate: show a password screen until the visitor unlocks it.
-  // The owner (logged in) always bypasses it — including in the editor preview.
-  if (pageHasPassword(slug) && !(await isOwner())) {
+  // Access: the owner always gets in; a logged-in client who's a member of this
+  // project skips the gate; everyone else hits the password screen (when the
+  // page has a password) which also offers a client login.
+  const owner = await isOwner()
+  const client = owner ? null : await currentClient()
+  const member = client ? isProjectMember(slug, client.id) : false
+  if (!owner && !member && pageHasPassword(slug)) {
     const c = await cookies()
     const unlocked = c.get(`pk_unlock_${slug}`)?.value === pageUnlockToken(slug)
     if (!unlocked) {
-      const bad = new URL(req.url).searchParams.get('bad') === '1'
-      return new Response(gateHtml(slug, bad), {
+      const url = new URL(req.url)
+      const bad = url.searchParams.get('bad') === '1'
+      const loginBad = url.searchParams.get('login') === 'bad'
+      return new Response(gateHtml(slug, bad, loginBad, client?.name || null), {
         headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
       })
     }

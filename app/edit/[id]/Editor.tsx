@@ -8,6 +8,7 @@ import { DEVICE_LABEL, DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
 import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
 import PasswordInput from '../../PasswordInput'
+import ClientAccess from './ClientAccess'
 import { uploadDesign } from '../../upload'
 
 function clientId(): string {
@@ -304,6 +305,8 @@ export default function Editor({
               : 'The link is open to anyone who has it. Click Save after changing this.'}
           </p>
         </div>
+
+        <ClientAccess slug={page.slug} />
       </div>
 
       <div className="editor-grid">

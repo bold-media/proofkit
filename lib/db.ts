@@ -39,6 +39,22 @@ function init(): DatabaseSync {
       PRIMARY KEY (comment_id, emoji, client_id)
     );
     CREATE INDEX IF NOT EXISTS reactions_comment_idx ON reactions (comment_id);
+    CREATE TABLE IF NOT EXISTS clients (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      session_token TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS project_members (
+      page_slug TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'commenter',
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (page_slug, client_id)
+    );
+    CREATE INDEX IF NOT EXISTS members_client_idx ON project_members (client_id);
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -64,6 +80,8 @@ function init(): DatabaseSync {
   if (!ccols.includes('device')) {
     db.exec("ALTER TABLE comments ADD COLUMN device TEXT NOT NULL DEFAULT 'desktop'")
   }
+  // Ties a comment to a logged-in client account (null for the owner/guests).
+  if (!ccols.includes('client_id')) db.exec('ALTER TABLE comments ADD COLUMN client_id TEXT')
   return db
 }
 

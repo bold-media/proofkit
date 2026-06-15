@@ -189,12 +189,13 @@ export function createComment(c: {
   body: string
   parent_id?: string | null
   device?: string
+  client_id?: string | null
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
   db.prepare(
-    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?)",
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', now)
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, now)
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
@@ -260,6 +261,80 @@ export function verifyOwner(pw: string): boolean {
 }
 export function ownerSession(): string | null {
   return getSetting('owner_session')
+}
+
+// ---- Client accounts & per-project membership ----
+export type Client = { id: string; email: string; name: string; created_at: string }
+
+function toClient(row: unknown): Client {
+  const r = plain<Client & { password_hash?: string; session_token?: string }>(row)
+  return { id: r.id, email: r.email, name: r.name, created_at: r.created_at }
+}
+
+export function getClientByEmail(email: string): Client | undefined {
+  const row = db.prepare('SELECT * FROM clients WHERE email = ?').get(email.trim().toLowerCase())
+  return row ? toClient(row) : undefined
+}
+export function getClientBySession(token: string): Client | undefined {
+  if (!token) return undefined
+  const row = db.prepare('SELECT * FROM clients WHERE session_token = ?').get(token)
+  return row ? toClient(row) : undefined
+}
+
+// Create a client, or update the password/name of an existing one (same email).
+export function upsertClient(email: string, name: string, password: string): Client {
+  const e = email.trim().toLowerCase()
+  const existing = db.prepare('SELECT id FROM clients WHERE email = ?').get(e) as { id: string } | undefined
+  if (existing) {
+    db.prepare('UPDATE clients SET name = ?, password_hash = ? WHERE id = ?').run(
+      name.trim(),
+      hashPassword(password),
+      existing.id,
+    )
+    return toClient(db.prepare('SELECT * FROM clients WHERE id = ?').get(existing.id))
+  }
+  const id = makeId(10)
+  db.prepare(
+    'INSERT INTO clients (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+  ).run(id, e, name.trim() || e, hashPassword(password), new Date().toISOString())
+  return toClient(db.prepare('SELECT * FROM clients WHERE id = ?').get(id))
+}
+
+// Verify credentials and rotate the session token; returns it for the cookie.
+export function loginClient(email: string, password: string): { client: Client; token: string } | null {
+  const row = db.prepare('SELECT * FROM clients WHERE email = ?').get(email.trim().toLowerCase()) as
+    | { id: string; password_hash: string }
+    | undefined
+  if (!row || !verifyPassword(password, row.password_hash)) return null
+  const token = crypto.randomBytes(24).toString('hex')
+  db.prepare('UPDATE clients SET session_token = ? WHERE id = ?').run(token, row.id)
+  return { client: toClient(db.prepare('SELECT * FROM clients WHERE id = ?').get(row.id)), token }
+}
+export function logoutClient(id: string): void {
+  db.prepare('UPDATE clients SET session_token = NULL WHERE id = ?').run(id)
+}
+
+export function addProjectMember(slug: string, clientId: string): void {
+  db.prepare(
+    "INSERT OR IGNORE INTO project_members (page_slug, client_id, role, created_at) VALUES (?, ?, 'commenter', ?)",
+  ).run(slug, clientId, new Date().toISOString())
+}
+export function removeProjectMember(slug: string, clientId: string): void {
+  db.prepare('DELETE FROM project_members WHERE page_slug = ? AND client_id = ?').run(slug, clientId)
+}
+export function isProjectMember(slug: string, clientId: string): boolean {
+  return !!db
+    .prepare('SELECT 1 FROM project_members WHERE page_slug = ? AND client_id = ?')
+    .get(slug, clientId)
+}
+export function listProjectMembers(slug: string): Client[] {
+  return db
+    .prepare(
+      `SELECT c.* FROM project_members m JOIN clients c ON c.id = m.client_id
+        WHERE m.page_slug = ? ORDER BY c.name ASC`,
+    )
+    .all(slug)
+    .map(toClient)
 }
 
 // ---- Per-page (client) view password ----

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { createComment, getComment, getPage, listComments } from '@/lib/data'
+import { currentClient } from '@/lib/client'
 import { DEVICE_SIZES, DEVICE_LABEL, type DeviceSize } from '@/lib/devices'
 import { emitCommentChange } from '@/lib/events'
 import { notify } from '@/lib/notify'
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid comment' }, { status: 400 })
   }
   const owner = await isOwner()
+  // A logged-in client comments as their account (trusted name + identity).
+  const client = owner ? null : await currentClient()
 
   // A reply threads under an existing top-level comment on the same page and
   // carries no pin coordinates of its own.
@@ -48,10 +51,11 @@ export async function POST(req: Request) {
     page_slug: slug,
     x_pct: parentId ? 0 : Number(body.x_pct) || 0,
     y_pct: parentId ? 0 : Number(body.y_pct) || 0,
-    author: String(body.author || 'Guest').slice(0, 80),
+    author: client ? client.name : String(body.author || 'Guest').slice(0, 80),
     body: text.slice(0, 2000),
     parent_id: parentId,
     device,
+    client_id: client ? client.id : null,
   })
   emitCommentChange(slug)
 
