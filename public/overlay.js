@@ -827,6 +827,24 @@
     true,
   )
 
+  // ---- click outside to close ----
+  // Clicking the design or empty host area closes an open popover and the panel.
+  // Our own controls (bar, device toolbar, a pin, the panel, a list item) don't.
+  function closeOnOutside(e) {
+    var t = e.target
+    if (!t || !t.closest) return
+    if (t.closest('.pk-bar') || t.closest('.pk-dev-bar')) return
+    var inPanel = t.closest('.pk-panel')
+    var inPop = t.closest('.pk-pop')
+    var keepPop = inPop || t.closest('.pk-pin') || t.closest('.pk-item')
+    if (!keepPop && chromeDoc.querySelector('.pk-pop')) closePopovers()
+    if (panelOpen && !inPanel) togglePanel()
+  }
+  // Placing clicks are stopped earlier (capture + stopImmediatePropagation), so
+  // this bubble-phase handler never fires while dropping a pin.
+  document.addEventListener('click', closeOnOutside)
+  if (FRAMED) chromeDoc.addEventListener('click', closeOnOutside)
+
   // ---- keyboard shortcuts ----
   // C: toggle comment mode · N/P: next/previous comment · Esc: close / exit.
   function onKey(e) {
