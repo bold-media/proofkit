@@ -538,7 +538,9 @@
   // Fixed/sticky elements, hidden→collapsed, and unresolvable pins → fixed layer.
   function positionAnchored() {
     var collapsed = 0
-    var vw = chromeWin.innerWidth || window.innerWidth
+    // Pins live in THIS document (the design frame), so all geometry is in this
+    // window's viewport — not chromeWin, which is the parent page when framed.
+    var vw = window.innerWidth
     var de = document.documentElement
     var sx = window.pageXOffset || 0
     var sy = window.pageYOffset || 0
@@ -596,16 +598,27 @@
   }
   var draggingPin = null
   var rafPending = false
-  function repositionSoon() {
-    if (rafPending) return
-    rafPending = true
-    requestAnimationFrame(function () { rafPending = false; positionAnchored() })
+  var trackUntil = 0
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now() }
+  function tick() {
+    rafPending = false
+    positionAnchored()
+    if (now() < trackUntil) { rafPending = true; requestAnimationFrame(tick) }
   }
-  // Anchored pins live in a fixed layer, so they must re-track on any scroll
-  // (including scroll inside the design's own menus/drawers — hence capture).
+  // Reposition now, then keep tracking for a short window. A menu/drawer that
+  // opens or closes does so with a CSS transition (e.g. translateX over ~300ms),
+  // which fires no scroll/mutation events as it animates — so we follow the
+  // element across the whole animation and let the pin land collapsed (or on it).
+  function repositionSoon() {
+    if (!anchoredPins.length) return
+    trackUntil = now() + 500
+    if (!rafPending) { rafPending = true; requestAnimationFrame(tick) }
+  }
+  // Re-track on scroll (capture, to catch scroll inside the design's own
+  // menus/drawers), on layout/class changes, and at the end of any transition.
   window.addEventListener('scroll', repositionSoon, true)
-  // React the instant a menu/drawer toggles (class/style change) or the layout
-  // shifts, so a pin snaps onto — or off — its element without a visible lag.
+  window.addEventListener('transitionend', repositionSoon, true)
+  window.addEventListener('animationend', repositionSoon, true)
   try {
     new MutationObserver(repositionSoon).observe(document.documentElement, {
       attributes: true, attributeFilter: ['class', 'style', 'aria-expanded', 'hidden'],
