@@ -490,6 +490,18 @@
     }
     return true
   }
+  // The nearest ancestor that's taken out of normal scroll flow. A pin on such
+  // an element must live in the fixed layer (viewport-tracked); everything else
+  // goes in the document layer so it scrolls natively with zero lag.
+  function fixedAncestor(el) {
+    var node = el
+    while (node && node.nodeType === 1 && node !== document.documentElement) {
+      var pos = getComputedStyle(node).position
+      if (pos === 'fixed' || pos === 'sticky') return node
+      node = node.parentElement
+    }
+    return null
+  }
   // Menu/disclosure trigger to collapse hidden pins onto (the burger).
   var TRIGGER_SEL = '.burger,.hamburger,.menu-toggle,.menu-icon,.nav-toggle,.navbar-toggler,' +
     '[class*="burger"],[class*="hamburger"],[aria-label="Menu"],[aria-label="menu"]'
@@ -519,36 +531,49 @@
     c._anchor = a
     return a
   }
-  // Place every element-anchored pin: on its element if visible, collapsed onto
-  // the menu trigger if its element is hidden, or hidden if neither resolves.
+  var anchoredPins = []
+  function moveToLayer(pin, target) { if (pin.parentNode !== target) target.appendChild(pin) }
+  // Place every element-anchored pin. Normal-flow elements → document layer at
+  // DOCUMENT coords (scroll-invariant, so they scroll natively with zero lag).
+  // Fixed/sticky elements, hidden→collapsed, and unresolvable pins → fixed layer.
   function positionAnchored() {
     var collapsed = 0
-    var pins = fixedLayer.children
     var vw = chromeWin.innerWidth || window.innerWidth
-    for (var i = 0; i < pins.length; i++) {
-      var pin = pins[i]
+    var de = document.documentElement
+    var sx = window.pageXOffset || 0
+    var sy = window.pageYOffset || 0
+    for (var i = 0; i < anchoredPins.length; i++) {
+      var pin = anchoredPins[i]
       var c = pin.__c
       if (!c || pin === draggingPin) continue
       var a = anchorOf(c)
       var elt = a ? resolvePath(a.path) : null
       var r = elt && isElVisible(elt) ? elt.getBoundingClientRect() : null
       // A panel slid off-screen horizontally (a closed drawer using transform,
-      // not display:none) counts as hidden too — collapse onto the trigger. Note
-      // we only test horizontally: vertical off-screen is normal scroll, and those
-      // pins should stay anchored and reappear as you scroll.
+      // not display:none) counts as hidden too. Only test horizontally: vertical
+      // off-screen is normal scroll, and those pins stay anchored.
       var offscreenH = r && (r.right <= 8 || r.left >= vw - 8)
       if (r && !offscreenH) {
-        // Element is on screen — pin rides on it.
         pin.classList.remove('pk-collapsed')
         pin.style.display = ''
-        pin.style.left = (r.left + clamp01f(a.fx) * r.width) + 'px'
-        pin.style.top = (r.top + clamp01f(a.fy) * r.height) + 'px'
+        if (fixedAncestor(elt)) {
+          // Element is fixed/sticky → track the viewport (fixed layer).
+          moveToLayer(pin, fixedLayer)
+          pin.style.left = (r.left + clamp01f(a.fx) * r.width) + 'px'
+          pin.style.top = (r.top + clamp01f(a.fy) * r.height) + 'px'
+        } else {
+          // Normal flow → document coords in the absolute layer (no scroll lag).
+          moveToLayer(pin, layer)
+          pin.style.left = (r.left + sx + clamp01f(a.fx) * r.width) + 'px'
+          pin.style.top = (r.top + sy + clamp01f(a.fy) * r.height) + 'px'
+        }
       } else if (elt) {
         // Element exists but is hidden/slid away (e.g. closed drawer) — collapse
         // onto the menu trigger so the comment is still reachable. Hang the pins
         // just BELOW the burger so the button itself stays tappable.
         var trig = findTrigger()
         if (trig) {
+          moveToLayer(pin, fixedLayer)
           var tr = trig.getBoundingClientRect()
           pin.classList.add('pk-collapsed')
           pin.style.display = ''
@@ -560,12 +585,12 @@
         }
       } else {
         // Anchor can't be resolved (design changed) — fall back to the stored
-        // document coordinate so the pin still shows roughly where it was.
-        var de = document.documentElement
+        // document coordinate (absolute layer) so it still shows where it was.
+        moveToLayer(pin, layer)
         pin.classList.remove('pk-collapsed')
         pin.style.display = ''
-        pin.style.left = ((c.x_pct / 100) * de.scrollWidth - (window.pageXOffset || 0)) + 'px'
-        pin.style.top = ((c.y_pct / 100) * de.scrollHeight - (window.pageYOffset || 0)) + 'px'
+        pin.style.left = ((c.x_pct / 100) * de.scrollWidth) + 'px'
+        pin.style.top = ((c.y_pct / 100) * de.scrollHeight) + 'px'
       }
     }
   }
@@ -717,6 +742,7 @@
     sizeLayer()
     layer.innerHTML = ''
     fixedLayer.innerHTML = ''
+    anchoredPins = []
     tops().forEach(function (c, i) {
       var s = statusOf(c)
       // Only show pins placed in the device size currently being viewed.
@@ -725,8 +751,9 @@
       if (s === 'resolved' && !showResolved) return
       var pin = buildPin(c, s, i)
       if (anchorOf(c)) {
-        // Element-anchored: lives in the fixed layer, positioned by positionAnchored.
+        // Element-anchored: positionAnchored routes it to the right layer.
         attachAnchoredPin(pin, c)
+        anchoredPins.push(pin)
         fixedLayer.appendChild(pin)
       } else {
         // Legacy coordinate pin: percentage of the document, scrolls with the page.
