@@ -3,6 +3,8 @@
 /* A pin collapsed onto the menu trigger (its real element is hidden, e.g. a
    closed burger menu) — a dashed ring hints it lives inside something. */
 .pk-pin.pk-collapsed{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(79,70,229,.5),0 2px 8px rgba(0,0,0,.25)}
+/* Aggregate badge shown when 2+ comments collapse onto the same trigger. */
+.pk-pin.pk-collapsed-count{background:#4f46e5;font:700 12px/1 sans-serif}
 .pk-pin{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;width:26px;height:26px;border-radius:50% 50% 50% 2px;background:#e5484d;color:#fff;border:2px solid #fff;font:600 12px/1 sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);transition:transform .12s ease,box-shadow .12s ease}
 .pk-pin.resolved{background:#16a34a}
 .pk-pin.pk-hi{transform:translate(-50%,-50%) scale(1.32);box-shadow:0 0 0 4px rgba(79,70,229,.28),0 3px 12px rgba(0,0,0,.32);z-index:2147483001}

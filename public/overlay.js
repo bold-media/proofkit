@@ -583,11 +583,44 @@
   var anchoredPins = []
   var coordPins = []
   function moveToLayer(pin, target) { if (pin.parentNode !== target) target.appendChild(pin) }
+  // When several comments collapse onto the same trigger (burger), we show ONE
+  // badge with the count instead of stacking pins. Clicking it opens the list.
+  var collapsedBadge = el('button', 'pk-pin pk-collapsed pk-collapsed-count')
+  collapsedBadge.addEventListener('click', function (e) { e.stopPropagation(); if (!panelOpen) togglePanel() })
+  function renderCollapsed(list) {
+    var trig = list.length ? findTrigger() : null
+    if (!trig) {
+      collapsedBadge.style.display = 'none'
+      list.forEach(function (p) { p.style.display = 'none' })
+      return
+    }
+    var tr = trig.getBoundingClientRect()
+    var x = Math.min(tr.right, window.innerWidth - 13)
+    var y = Math.max(tr.top, 13)
+    if (list.length === 1) {
+      // A single hidden comment keeps its own pin (click opens its thread).
+      collapsedBadge.style.display = 'none'
+      var pin = list[0]
+      moveToLayer(pin, fixedLayer)
+      pin.classList.add('pk-collapsed')
+      pin.style.display = ''
+      pin.style.left = x + 'px'
+      pin.style.top = y + 'px'
+    } else {
+      list.forEach(function (p) { p.style.display = 'none' })
+      if (collapsedBadge.parentNode !== fixedLayer) fixedLayer.appendChild(collapsedBadge)
+      collapsedBadge.style.display = ''
+      collapsedBadge.textContent = list.length > 99 ? '99+' : String(list.length)
+      collapsedBadge.title = list.length + ' comments inside the menu — open Comments to view'
+      collapsedBadge.style.left = x + 'px'
+      collapsedBadge.style.top = y + 'px'
+    }
+  }
   // Place every element-anchored pin. Normal-flow elements → document layer at
   // DOCUMENT coords (scroll-invariant, so they scroll natively with zero lag).
   // Fixed/sticky elements, hidden→collapsed, and unresolvable pins → fixed layer.
   function positionAnchored() {
-    var collapsed = 0
+    var toCollapse = []
     // Pins live in THIS document (the design frame), so all geometry is in this
     // window's viewport — not chromeWin, which is the parent page when framed.
     var vw = window.innerWidth
@@ -628,23 +661,12 @@
           pin.style.top = (py + sy) + 'px'
         }
       } else if (elt) {
-        // Element exists but is hidden/slid away (e.g. closed drawer) — collapse
-        // onto the menu trigger so the comment is still reachable. Hang the pins
-        // just BELOW the burger so the button itself stays tappable.
-        var trig = findTrigger()
-        if (trig) {
-          moveToLayer(pin, fixedLayer)
-          var tr = trig.getBoundingClientRect()
-          pin.classList.add('pk-collapsed')
-          pin.style.display = ''
-          // Sit as a badge on the trigger's top-right corner so it reads as "on"
-          // the burger (not floating below it); the button stays mostly tappable.
-          pin.style.left = Math.min(tr.right, vw - 13) + 'px'
-          pin.style.top = (Math.max(tr.top, 13) + collapsed * 24) + 'px'
-          collapsed++
-        } else {
-          pin.style.display = 'none'
-        }
+        // Element exists but is hidden/slid away (e.g. closed drawer) — collect it
+        // to collapse onto the menu trigger (rendered after the loop, as a single
+        // counted badge when there's more than one).
+        moveToLayer(pin, fixedLayer)
+        pin.style.display = 'none'
+        toCollapse.push(pin)
       } else {
         // Anchor can't be resolved (design changed) — fall back to the stored
         // document coordinate (absolute layer) so it still shows where it was.
@@ -655,6 +677,7 @@
         pin.style.top = ((c.y_pct / 100) * de.scrollHeight) + 'px'
       }
     }
+    renderCollapsed(toCollapse)
     // Coordinate (un-anchored) pins scroll natively in the document layer; we only
     // toggle their visibility so they don't float over an open drawer/sticky bar.
     for (var ci = 0; ci < coordPins.length; ci++) {
