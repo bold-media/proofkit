@@ -74,6 +74,16 @@ function highlightMentions(text: string, names: string[]): ReactNode {
   return out
 }
 
+function CommentImage({ image }: { image?: string | null }) {
+  if (!image) return null
+  const u = `/api/attachments/${image}`
+  return (
+    <a href={u} target="_blank" rel="noreferrer" className="comment-img">
+      <img src={u} alt="attachment" />
+    </a>
+  )
+}
+
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   const m = Math.floor(ms / 60000)
@@ -763,6 +773,7 @@ function CommentCard({
 
       {!open ? (
         <div className="comment-snippet">
+          {comment.image && '📷 '}
           {highlightMentions(comment.body, names)}
           {replies.length > 0 && ` · ${replies.length} ${replies.length > 1 ? 'replies' : 'reply'}`}
         </div>
@@ -771,6 +782,7 @@ function CommentCard({
           <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 6 }}>
             {highlightMentions(comment.body, names)}
           </div>
+          <CommentImage image={comment.image} />
 
           <div className="creactions">
             {REACTION_EMOJI.map((em) => {
@@ -809,6 +821,7 @@ function CommentCard({
                     {r.author} <span className="ctime">· {timeAgo(r.created_at)}</span>
                   </div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{highlightMentions(r.body, names)}</div>
+                  <CommentImage image={r.image} />
                 </div>
               ))}
             </div>

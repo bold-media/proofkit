@@ -464,7 +464,7 @@
     pv.innerHTML =
       '<div class="pk-pv-head"><span class="pk-dot" style="background:' + st.color + '"></span>' +
       escapeHtml(c.author) + ' <span class="pk-time">· ' + timeAgo(c.created_at) + '</span></div>' +
-      '<div class="pk-pv-body">' + renderBody(c.body) + '</div>' +
+      '<div class="pk-pv-body">' + renderBody(c.body) + '</div>' + imgHtml(c) +
       (rs.length ? '<div class="pk-pv-meta">' + rs.length + (rs.length > 1 ? ' replies' : ' reply') + '</div>' : '')
     chromeDoc.body.appendChild(pv)
     var r = pin.getBoundingClientRect()
@@ -980,6 +980,49 @@
   }
 
   // ---- new comment composer ----
+  // ---- image attachments ----
+  var ATTACH_HTML = '<div class="pk-attach"><label class="pk-attach-btn">📎 Image' +
+    '<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>' +
+    '<div class="pk-attach-preview"></div></div>'
+  // Wire a popover's image picker; returns a {name} holder set once an image
+  // uploads (the comment POST sends name as `image`).
+  function wireAttach(pop) {
+    var input = pop.querySelector('.pk-attach input[type=file]')
+    var preview = pop.querySelector('.pk-attach-preview')
+    var state = { name: null }
+    if (!input) return state
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0]
+      if (!file) return
+      var fd = new FormData()
+      fd.append('file', file)
+      preview.textContent = 'Uploading…'
+      fetch(API + '/api/attachments', { method: 'POST', body: fd })
+        .then(function (r) { return r.json() })
+        .then(function (j) {
+          if (j && j.name) {
+            state.name = j.name
+            preview.innerHTML = '<span class="pk-attach-thumb"><img src="' + API + j.url + '" alt="">' +
+              '<button class="pk-attach-rm" type="button" aria-label="Remove">×</button></span>'
+            preview.querySelector('.pk-attach-rm').addEventListener('click', function () {
+              state.name = null; preview.innerHTML = ''; input.value = ''
+            })
+          } else {
+            preview.textContent = (j && j.error) || 'Upload failed'
+          }
+        })
+        .catch(function () { preview.textContent = 'Upload failed' })
+    })
+    return state
+  }
+
+  // Rendered image for a comment/reply that has an attachment (click to enlarge).
+  function imgHtml(c) {
+    if (!c.image) return ''
+    var u = API + '/api/attachments/' + escapeHtml(c.image)
+    return '<a class="pk-cimg" href="' + u + '" target="_blank" rel="noreferrer"><img src="' + u + '" alt="attachment"></a>'
+  }
+
   function openComposer(xPct, yPct, clientX, clientY, anchor) {
     closePopovers()
     var savedName = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
@@ -987,22 +1030,24 @@
     pop.innerHTML =
       (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
       '<textarea class="pk-text" placeholder="Leave your feedback…"></textarea>' +
+      ATTACH_HTML +
       '<div class="pk-row"><button class="pk-cancel">Cancel</button><button class="pk-send">Send</button></div>'
     positionPop(pop, clientX, clientY)
     var ta = pop.querySelector('.pk-text')
     ta.focus()
     attachMentions(ta)
+    var att = wireAttach(pop)
     pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
     pop.querySelector('.pk-send').addEventListener('click', function () {
       var name = savedName || (pop.querySelector('.pk-name') ? pop.querySelector('.pk-name').value.trim() : '')
       var text = ta.value.trim()
-      if (!text) return
+      if (!text && !att.name) return
       if (!name) name = OWNER ? 'Owner' : 'Guest'
       localStorage.setItem(NAME_KEY, name)
       fetch(API + '/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text, device: currentDevice, anchor: anchor || null }),
+        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text, device: currentDevice, anchor: anchor || null, image: att.name }),
       })
         .then(function (r) { return r.json() })
         .then(function (c) { if (c && c.id) comments.push(c); render() })
@@ -1029,7 +1074,7 @@
       ' · <span class="pk-time">' + timeAgo(c.created_at) + '</span>' +
       ' <span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span>' +
       ' <span class="pk-pill" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
-      '<div class="pk-cbody">' + renderBody(c.body) + '</div>'
+      '<div class="pk-cbody">' + renderBody(c.body) + '</div>' + imgHtml(c)
 
     var rmap = {}
     ;(c.reactions || []).forEach(function (r) { rmap[r.emoji] = r })
@@ -1047,7 +1092,7 @@
       rs.forEach(function (r) {
         h += '<div class="pk-reply"><b>' + escapeHtml(r.author) +
           ' <span class="pk-time">· ' + timeAgo(r.created_at) + '</span></b>' +
-          '<span>' + renderBody(r.body) + '</span></div>'
+          '<span>' + renderBody(r.body) + '</span>' + imgHtml(r) + '</div>'
       })
       h += '</div>'
     }
@@ -1062,6 +1107,7 @@
     h += '<div class="pk-replybox">' +
       (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
       '<textarea class="pk-text" placeholder="Reply…"></textarea>' +
+      ATTACH_HTML +
       '<div class="pk-row">' +
       (OWNER ? '<button class="pk-del">Delete</button>' : '') +
       '<button class="pk-cancel">Close</button><button class="pk-send">Reply</button></div>' +
@@ -1109,6 +1155,7 @@
     var savedName = localStorage.getItem(NAME_KEY) || ''
     var ta = pop.querySelector('.pk-text')
     if (ta) attachMentions(ta)
+    var att = wireAttach(pop)
     pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
 
     var navList = visibleTops()
@@ -1157,13 +1204,13 @@
     pop.querySelector('.pk-send').addEventListener('click', function () {
       var name = savedName || (pop.querySelector('.pk-name') ? pop.querySelector('.pk-name').value.trim() : '')
       var text = ta.value.trim()
-      if (!text) return
+      if (!text && !att.name) return
       if (!name) name = OWNER ? 'Owner' : 'Guest'
       localStorage.setItem(NAME_KEY, name)
       fetch(API + '/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: slug, parent_id: c.id, author: name, body: text }),
+        body: JSON.stringify({ page_slug: slug, parent_id: c.id, author: name, body: text, image: att.name }),
       })
         .then(function (r) { return r.json() })
         .then(function (rep) {
@@ -1265,6 +1312,7 @@
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
           '<div class="pk-item-body">' + renderBody(c.body) + '</div>' +
+          (c.image ? '<img class="pk-item-thumb" src="' + API + '/api/attachments/' + escapeHtml(c.image) + '" alt="">' : '') +
           '<div class="pk-item-meta"><span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span> · ' +
           timeAgo(c.created_at) + (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
           '</button>'

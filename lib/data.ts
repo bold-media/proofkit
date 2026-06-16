@@ -55,6 +55,7 @@ export type Comment = {
   device: string
   created_at: string
   anchor: string | null
+  image: string | null
   reactions?: Reaction[]
 }
 
@@ -193,12 +194,13 @@ export function createComment(c: {
   client_id?: string | null
   anchor?: string | null
   is_owner?: boolean
+  image?: string | null
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
   db.prepare(
-    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, is_owner, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?, ?)",
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, c.is_owner ? 1 : 0, now)
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, is_owner, image, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?, ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, c.is_owner ? 1 : 0, c.image || null, now)
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 

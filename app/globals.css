@@ -389,6 +389,18 @@ h1 {
   color: var(--muted);
 }
 
+.comment-img {
+  display: block;
+  margin-top: 8px;
+}
+.comment-img img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
 /* @mentions in comment bodies + the reply autocomplete menu. */
 .mention {
   color: var(--accent);

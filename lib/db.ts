@@ -101,6 +101,9 @@ function init(): DatabaseSync {
     db.exec('ALTER TABLE comments ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0')
     db.exec("UPDATE comments SET is_owner = 1 WHERE author = 'Owner' AND client_id IS NULL")
   }
+  // Optional image attachment (stored file name under /uploads, served via the
+  // attachments route).
+  if (!ccols.includes('image')) db.exec('ALTER TABLE comments ADD COLUMN image TEXT')
   // Whether a client still needs to set their own name + password (first login).
   const clcols = (db.prepare('PRAGMA table_info(clients)').all() as { name: string }[]).map((c) => c.name)
   if (clcols.length && !clcols.includes('must_setup')) {
