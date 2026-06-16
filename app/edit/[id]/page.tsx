@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
-import { getPage, listComments, toClientPage } from '@/lib/data'
+import { getPage, listApprovals, listComments, toClientPage } from '@/lib/data'
 import { isOwner } from '@/lib/owner'
 import Editor from './Editor'
 
@@ -13,6 +13,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const page = getPage(id)
   if (!page) notFound()
   const comments = listComments(id)
+  const approvals = listApprovals(id)
 
   return (
     <div className="wrap">
@@ -22,7 +23,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
           Proofkit
         </Link>
       </div>
-      <Editor page={toClientPage(page)} initialComments={comments} />
+      <Editor page={toClientPage(page)} initialComments={comments} approvals={approvals} />
     </div>
   )
 }

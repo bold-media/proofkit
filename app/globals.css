@@ -350,6 +350,45 @@ h1 {
   margin-top: 14px;
 }
 
+.approve-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.approve-banner.ok {
+  background: #ecfdf3;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.approve-banner.pending {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.approve-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+.approve-banner.ok .approve-ico {
+  background: #16a34a;
+  color: #fff;
+}
+.approve-banner.pending .approve-ico {
+  background: #e5e7eb;
+  color: var(--muted);
+}
+
 /* @mentions in comment bodies + the reply autocomplete menu. */
 .mention {
   color: var(--accent);

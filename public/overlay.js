@@ -296,11 +296,34 @@
   document.body.appendChild(fixedLayer)
 
   var bar = el('div', 'pk-bar')
+  var approveBtn = el('button', 'pk-btn pk-ghost')
+  approveBtn.textContent = '✓ Approve'
   var listBtn = el('button', 'pk-btn pk-ghost')
   var btn = el('button', 'pk-btn')
+  // Sign-off is the client's action — the owner sees the record in the editor.
+  if (!OWNER) bar.appendChild(approveBtn)
   bar.appendChild(listBtn)
   bar.appendChild(btn)
   chromeDoc.body.appendChild(bar)
+  var approved = false
+  function updateApproveBtn() {
+    approveBtn.textContent = approved ? '✓ Approved' : '✓ Approve'
+    approveBtn.disabled = approved
+    styleBar()
+  }
+  // Reflect a prior sign-off from this viewer so the button reads "Approved".
+  if (!OWNER) {
+    fetch(API + '/api/project/' + slug + '/approve')
+      .then(function (r) { return r.json() })
+      .then(function (j) {
+        var nm = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
+        if (nm && (j.approvals || []).some(function (a) { return a.name === nm })) {
+          approved = true
+          updateApproveBtn()
+        }
+      })
+      .catch(function () {})
+  }
 
   var panel = el('div', 'pk-panel')
   chromeDoc.body.appendChild(panel)
@@ -334,6 +357,8 @@
       'box-shadow:0 4px 16px rgba(0,0,0,.22);white-space:nowrap'
     btn.style.cssText = 'border:none;color:#fff;background:' + (mode ? '#dc2626' : '#4f46e5') + ';' + base
     listBtn.style.cssText = 'background:#fff;color:#1c2024;border:1px solid #e6e8ec;' + base
+    approveBtn.style.cssText = 'background:#fff;color:#16a34a;border:1px solid #e6e8ec;' + base +
+      (approved ? ';opacity:.6;cursor:default' : '')
   }
   styleBar()
 
@@ -904,6 +929,44 @@
     e.stopPropagation()
     togglePanel()
   })
+  approveBtn.addEventListener('click', function (e) {
+    e.stopPropagation()
+    if (approved) return
+    openApprove()
+  })
+
+  // ---- sign-off popover ----
+  function openApprove() {
+    closePopovers()
+    var savedName = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
+    var pop = el('div', 'pk-pop pk-approve-pop')
+    pop.innerHTML =
+      '<div class="pk-approve-title">Approve this design?</div>' +
+      '<p class="pk-approve-sub">Lets the owner know you’ve signed off.</p>' +
+      (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
+      '<div class="pk-row"><button class="pk-cancel">Cancel</button><button class="pk-send">Approve</button></div>'
+    chromeDoc.body.appendChild(pop)
+    pop.style.left = 'auto'
+    pop.style.top = 'auto'
+    pop.style.right = '20px'
+    pop.style.bottom = '74px'
+    var nameInput = pop.querySelector('.pk-name')
+    if (nameInput) nameInput.focus()
+    pop.querySelector('.pk-cancel').addEventListener('click', closePopovers)
+    pop.querySelector('.pk-send').addEventListener('click', function () {
+      var name = savedName || (nameInput ? nameInput.value.trim() : '')
+      if (!name) name = 'Guest'
+      localStorage.setItem(NAME_KEY, name)
+      fetch(API + '/api/project/' + slug + '/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name }),
+      }).catch(function () {})
+      approved = true
+      updateApproveBtn()
+      closePopovers()
+    })
+  }
 
   function clamp(v, max) { return Math.max(12, Math.min(v, max)) }
   function positionPop(pop, clientX, clientY) {

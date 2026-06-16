@@ -60,6 +60,14 @@ function init(): DatabaseSync {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS approvals (
+      id TEXT PRIMARY KEY,
+      page_slug TEXT NOT NULL,
+      name TEXT NOT NULL,
+      client_id TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS approvals_page_idx ON approvals (page_slug);
   `)
   // Add columns introduced after the first release (no-op if already present).
   const cols = (db.prepare('PRAGMA table_info(pages)').all() as { name: string }[]).map((c) => c.name)

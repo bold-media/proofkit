@@ -29,6 +29,9 @@
 .pk-pop input,.pk-pop textarea{width:100%;border:1px solid #e6e8ec;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;margin-bottom:8px;box-sizing:border-box}
 .pk-pop textarea{resize:vertical;min-height:60px}
 .pk-pop .pk-row{display:flex;gap:8px;justify-content:flex-end}
+.pk-approve-title{font:600 15px sans-serif;margin-bottom:2px}
+.pk-approve-sub{font:400 13px/1.4 sans-serif;color:#6b7280;margin:0 0 12px}
+.pk-approve-pop .pk-send{background:#16a34a;color:#fff}
 .pk-pop button{border:none;border-radius:8px;padding:7px 13px;font:600 13px sans-serif;cursor:pointer}
 .pk-send{background:#4f46e5;color:#fff}
 .pk-cancel{background:#f1f1f3;color:#1c2024}

@@ -254,6 +254,29 @@ export function setOwnerName(name: string): void {
   db.prepare('UPDATE comments SET author = ? WHERE is_owner = 1').run(n)
 }
 
+// ---- approvals (client sign-off) ----
+export type Approval = { id: string; page_slug: string; name: string; client_id: string | null; created_at: string }
+
+export function addApproval(slug: string, name: string, clientId: string | null): Approval {
+  const id = makeId(10)
+  const now = new Date().toISOString()
+  db.prepare('INSERT INTO approvals (id, page_slug, name, client_id, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    id,
+    slug,
+    name.slice(0, 80),
+    clientId || null,
+    now,
+  )
+  return { id, page_slug: slug, name: name.slice(0, 80), client_id: clientId || null, created_at: now }
+}
+
+export function listApprovals(slug: string): Approval[] {
+  return db
+    .prepare('SELECT * FROM approvals WHERE page_slug = ? ORDER BY created_at DESC')
+    .all(slug)
+    .map((r) => plain<Approval>(r))
+}
+
 // Pages that carry an owner comment — so a rename can ping their live streams.
 export function ownerCommentPages(): string[] {
   const rows = db

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 
-import type { ClientPage, Comment, CommentStatus } from '@/lib/data'
+import type { Approval, ClientPage, Comment, CommentStatus } from '@/lib/data'
 import { DEVICE_LABEL, DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
 import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
@@ -89,9 +89,11 @@ function timeAgo(iso: string): string {
 export default function Editor({
   page,
   initialComments,
+  approvals = [],
 }: {
   page: ClientPage
   initialComments: Comment[]
+  approvals?: Approval[]
 }) {
   const router = useRouter()
   const [name, setName] = useState(page.name)
@@ -354,6 +356,25 @@ export default function Editor({
           </button>
         </div>
       </div>
+
+      {approvals.length > 0 ? (
+        <div className="approve-banner ok">
+          <span className="approve-ico" aria-hidden>
+            ✓
+          </span>
+          <span>
+            Approved by <strong>{approvals[0].name}</strong> · {timeAgo(approvals[0].created_at)}
+            {approvals.length > 1 && ` (and ${approvals.length - 1} more)`}
+          </span>
+        </div>
+      ) : (
+        <div className="approve-banner pending">
+          <span className="approve-ico" aria-hidden>
+            ◷
+          </span>
+          <span>Awaiting client sign-off — clients see an “Approve” button on the live page.</span>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 18 }}>
         <label className="field-label">Live link to send your client</label>
