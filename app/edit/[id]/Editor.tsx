@@ -146,6 +146,11 @@ export default function Editor({
   const [viewVersion, setViewVersion] = useState<string | null>(currentVersion)
   const [publishing, setPublishing] = useState(false)
   const [previewNonce, setPreviewNonce] = useState(0)
+  // Side-by-side compare: A vs B at a shared width.
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareA, setCompareA] = useState<string>(versions[versions.length - 2]?.id || versions[0]?.id || '')
+  const [compareB, setCompareB] = useState<string>(versions[versions.length - 1]?.id || '')
+  const [compareWidth, setCompareWidth] = useState<'full' | 768 | 390>('full')
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [filter, setFilter] = useState<'all' | CommentStatus>('all')
@@ -647,21 +652,71 @@ export default function Editor({
                 Delete version
               </button>
             )}
+            <button className={compareMode ? 'btn btn-sm' : 'btn btn-sm ghost'} onClick={() => setCompareMode((c) => !c)}>
+              {compareMode ? 'Exit compare' : 'Compare'}
+            </button>
           </div>
         )}
       </div>
-      <p className="muted" style={{ fontSize: 13, margin: '6px 0 8px' }}>
-        {(viewVersion ?? currentVersion) === currentVersion
-          ? 'This is the live design your client sees. Drop a folder above to upload a new version.'
-          : 'Previewing an older version — clients still see the live one until you publish it.'}
-      </p>
-      <iframe
-        key={`${viewVersion ?? currentVersion ?? 'cur'}-${previewNonce}`}
-        ref={frame}
-        className="preview-frame"
-        src={`/project/${page.slug}?raw=1${(viewVersion ?? currentVersion) ? `&v=${viewVersion ?? currentVersion}` : ''}`}
-        title="Preview"
-      />
+      {compareMode ? (
+        <>
+          <div className="row" style={{ gap: 8, margin: '6px 0 10px' }}>
+            <span className="muted" style={{ fontSize: 13 }}>
+              Width:
+            </span>
+            {(['full', 768, 390] as const).map((w) => (
+              <button
+                key={w}
+                className={compareWidth === w ? 'dtab on' : 'dtab'}
+                onClick={() => setCompareWidth(w)}
+              >
+                {w === 'full' ? 'Desktop' : w === 768 ? 'Tablet' : 'Mobile'}
+              </button>
+            ))}
+          </div>
+          <div className="compare-grid">
+            {[
+              { v: compareA, set: setCompareA },
+              { v: compareB, set: setCompareB },
+            ].map((side, i) => (
+              <div key={i} className="compare-col">
+                <select className="input" value={side.v} onChange={(e) => side.set(e.target.value)}>
+                  {versions.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                      {v.id === currentVersion ? ' (live)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="compare-stage">
+                  <iframe
+                    key={`${side.v}-${compareWidth}`}
+                    className="compare-frame"
+                    style={{ width: compareWidth === 'full' ? '100%' : `${compareWidth}px` }}
+                    src={`/project/${page.slug}?raw=1&bare=1&v=${side.v}`}
+                    title={`Compare ${i === 0 ? 'A' : 'B'}`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ fontSize: 13, margin: '6px 0 8px' }}>
+            {(viewVersion ?? currentVersion) === currentVersion
+              ? 'This is the live design your client sees. Drop a folder above to upload a new version.'
+              : 'Previewing an older version — clients still see the live one until you publish it.'}
+          </p>
+          <iframe
+            key={`${viewVersion ?? currentVersion ?? 'cur'}-${previewNonce}`}
+            ref={frame}
+            className="preview-frame"
+            src={`/project/${page.slug}?raw=1${(viewVersion ?? currentVersion) ? `&v=${viewVersion ?? currentVersion}` : ''}`}
+            title="Preview"
+          />
+        </>
+      )}
 
       {confirmDel && (
         <div

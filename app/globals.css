@@ -456,6 +456,40 @@ h1 {
   padding: 1px 5px;
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.compare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.compare-col .input {
+  max-width: 200px;
+  font-weight: 600;
+}
+.compare-stage {
+  height: 70vh;
+  overflow: auto;
+  background: #eceef1;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}
+.compare-frame {
+  flex: none;
+  border: 0;
+  background: #fff;
+  border-radius: 8px;
+  min-height: 100%;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.08);
+}
+
 /* @mentions in comment bodies + the reply autocomplete menu. */
 .mention {
   color: var(--accent);

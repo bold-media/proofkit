@@ -232,7 +232,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const cookieName = (await cookies()).get(`pk_name_${slug}`)?.value || ''
   const viewerName = owner ? getOwnerName() : client?.name || cookieName
   const nameAttr = viewerName ? ` data-proof-name="${esc(viewerName)}"` : ''
-  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}${nameAttr}></script>`
+  // `bare=1` serves the raw design with no feedback overlay — used by the editor's
+  // side-by-side version compare so the panes stay clean.
+  const bare = new URL(req.url).searchParams.get('bare') === '1'
+  const overlay = bare
+    ? ''
+    : `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}${nameAttr}></script>`
 
   if (baseTag) {
     html = /<head[^>]*>/i.test(html)
