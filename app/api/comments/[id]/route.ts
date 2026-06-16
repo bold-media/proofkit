@@ -5,6 +5,7 @@ import {
   type CommentStatus,
   deleteComment,
   getComment,
+  setCommentAnchor,
   setCommentPosition,
   setCommentStatus,
 } from '@/lib/data'
@@ -35,6 +36,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (typeof body.x_pct === 'number' && typeof body.y_pct === 'number') {
     setCommentPosition(id, body.x_pct, body.y_pct)
+    // A drag can re-anchor (dropped on a new element) or clear the anchor.
+    if ('anchor' in body) {
+      const a = body.anchor && typeof body.anchor === 'object' ? JSON.stringify(body.anchor) : null
+      setCommentAnchor(id, a && a.length <= 2000 ? a : null)
+    }
   }
   const slug = getComment(id)?.page_slug
   if (slug) emitCommentChange(slug)

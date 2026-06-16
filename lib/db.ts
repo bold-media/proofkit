@@ -83,6 +83,10 @@ function init(): DatabaseSync {
   }
   // Ties a comment to a logged-in client account (null for the owner/guests).
   if (!ccols.includes('client_id')) db.exec('ALTER TABLE comments ADD COLUMN client_id TEXT')
+  // Optional DOM anchor (JSON: structural path + intra-element fraction) so a pin
+  // rides with the element it was placed on — e.g. a comment inside a burger menu
+  // hides/relocates when the menu closes. Null = legacy coordinate-only pin.
+  if (!ccols.includes('anchor')) db.exec('ALTER TABLE comments ADD COLUMN anchor TEXT')
   // Whether a client still needs to set their own name + password (first login).
   const clcols = (db.prepare('PRAGMA table_info(clients)').all() as { name: string }[]).map((c) => c.name)
   if (clcols.length && !clcols.includes('must_setup')) {

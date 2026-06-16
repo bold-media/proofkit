@@ -289,6 +289,11 @@
   // and go in the host document (the page itself when not framed).
   var layer = el('div', 'pk-layer')
   document.body.appendChild(layer)
+  // A second, position:fixed layer for element-anchored pins. Their position is
+  // a live element rect (viewport coords), recomputed on scroll/resize — so a pin
+  // rides with its element, and collapses onto the menu button when hidden.
+  var fixedLayer = el('div', 'pk-layer pk-fixed-layer')
+  document.body.appendChild(fixedLayer)
 
   var bar = el('div', 'pk-bar')
   var listBtn = el('button', 'pk-btn pk-ghost')
@@ -447,6 +452,142 @@
   // Click a pin to open its thread. The owner can also drag it to reposition
   // the pin; the new spot is saved. A small movement threshold keeps a normal
   // click from being treated as a drag.
+  // ---- element anchoring ----
+  // A pin can ride with the DOM element it was placed on (so a comment inside a
+  // burger menu hides/relocates when the menu closes). We store a structural path
+  // (child indices from <html>) plus the click's fraction within the element.
+  function clamp01f(v) { return Math.max(0, Math.min(1, v || 0)) }
+  function elPath(node) {
+    var path = []
+    while (node && node.nodeType === 1 && node !== document.documentElement) {
+      var parent = node.parentNode
+      if (!parent || parent.nodeType !== 1) break
+      path.unshift(Array.prototype.indexOf.call(parent.children, node))
+      node = parent
+    }
+    return path
+  }
+  function resolvePath(path) {
+    var node = document.documentElement
+    for (var i = 0; i < path.length; i++) {
+      if (!node) return null
+      node = node.children[path[i]]
+    }
+    return node || null
+  }
+  function isElVisible(el) {
+    if (!el) return false
+    var r = el.getBoundingClientRect()
+    if (r.width < 1 && r.height < 1) return false
+    var node = el
+    while (node && node.nodeType === 1) {
+      var st = chromeWin.getComputedStyle ? getComputedStyle(node) : null
+      if (st) {
+        if (st.display === 'none' || st.visibility === 'hidden' || st.visibility === 'collapse') return false
+        if (parseFloat(st.opacity) === 0) return false
+      }
+      node = node.parentElement
+    }
+    return true
+  }
+  // Menu/disclosure trigger to collapse hidden pins onto (the burger).
+  var TRIGGER_SEL = '.burger,.hamburger,.menu-toggle,.menu-icon,.nav-toggle,.navbar-toggler,' +
+    '[class*="burger"],[class*="hamburger"],[aria-label="Menu"],[aria-label="menu"]'
+  function findTrigger() {
+    var els
+    try { els = document.querySelectorAll(TRIGGER_SEL) } catch (e) { return null }
+    for (var i = 0; i < els.length; i++) if (isElVisible(els[i])) return els[i]
+    return null
+  }
+  function makeAnchor(target, clientX, clientY) {
+    try {
+      if (!target || target.nodeType !== 1) return null
+      if (target === document.body || target === document.documentElement) return null
+      if (layer.contains(target) || fixedLayer.contains(target)) return null // never our own pins
+      var r = target.getBoundingClientRect()
+      if (r.width < 1 || r.height < 1) return null
+      return { path: elPath(target), fx: clamp01f((clientX - r.left) / r.width), fy: clamp01f((clientY - r.top) / r.height) }
+    } catch (e) { return null }
+  }
+  function anchorOf(c) {
+    if (c._anchor !== undefined) return c._anchor
+    var a = null
+    if (c.anchor) {
+      try { a = typeof c.anchor === 'string' ? JSON.parse(c.anchor) : c.anchor } catch (e) { a = null }
+      if (a && (!a.path || !a.path.length)) a = null
+    }
+    c._anchor = a
+    return a
+  }
+  // Place every element-anchored pin: on its element if visible, collapsed onto
+  // the menu trigger if its element is hidden, or hidden if neither resolves.
+  function positionAnchored() {
+    var collapsed = 0
+    var pins = fixedLayer.children
+    var vw = chromeWin.innerWidth || window.innerWidth
+    for (var i = 0; i < pins.length; i++) {
+      var pin = pins[i]
+      var c = pin.__c
+      if (!c || pin === draggingPin) continue
+      var a = anchorOf(c)
+      var elt = a ? resolvePath(a.path) : null
+      var r = elt && isElVisible(elt) ? elt.getBoundingClientRect() : null
+      // A panel slid off-screen horizontally (a closed drawer using transform,
+      // not display:none) counts as hidden too — collapse onto the trigger. Note
+      // we only test horizontally: vertical off-screen is normal scroll, and those
+      // pins should stay anchored and reappear as you scroll.
+      var offscreenH = r && (r.right <= 8 || r.left >= vw - 8)
+      if (r && !offscreenH) {
+        // Element is on screen — pin rides on it.
+        pin.classList.remove('pk-collapsed')
+        pin.style.display = ''
+        pin.style.left = (r.left + clamp01f(a.fx) * r.width) + 'px'
+        pin.style.top = (r.top + clamp01f(a.fy) * r.height) + 'px'
+      } else if (elt) {
+        // Element exists but is hidden/slid away (e.g. closed drawer) — collapse
+        // onto the menu trigger so the comment is still reachable. Hang the pins
+        // just BELOW the burger so the button itself stays tappable.
+        var trig = findTrigger()
+        if (trig) {
+          var tr = trig.getBoundingClientRect()
+          pin.classList.add('pk-collapsed')
+          pin.style.display = ''
+          pin.style.left = Math.min(tr.left + tr.width / 2, vw - 16) + 'px'
+          pin.style.top = (tr.bottom + 14 + collapsed * 22) + 'px'
+          collapsed++
+        } else {
+          pin.style.display = 'none'
+        }
+      } else {
+        // Anchor can't be resolved (design changed) — fall back to the stored
+        // document coordinate so the pin still shows roughly where it was.
+        var de = document.documentElement
+        pin.classList.remove('pk-collapsed')
+        pin.style.display = ''
+        pin.style.left = ((c.x_pct / 100) * de.scrollWidth - (window.pageXOffset || 0)) + 'px'
+        pin.style.top = ((c.y_pct / 100) * de.scrollHeight - (window.pageYOffset || 0)) + 'px'
+      }
+    }
+  }
+  var draggingPin = null
+  var rafPending = false
+  function repositionSoon() {
+    if (rafPending) return
+    rafPending = true
+    requestAnimationFrame(function () { rafPending = false; positionAnchored() })
+  }
+  // Anchored pins live in a fixed layer, so they must re-track on any scroll
+  // (including scroll inside the design's own menus/drawers — hence capture).
+  window.addEventListener('scroll', repositionSoon, true)
+  // React the instant a menu/drawer toggles (class/style change) or the layout
+  // shifts, so a pin snaps onto — or off — its element without a visible lag.
+  try {
+    new MutationObserver(repositionSoon).observe(document.documentElement, {
+      attributes: true, attributeFilter: ['class', 'style', 'aria-expanded', 'hidden'],
+      subtree: true, childList: true,
+    })
+  } catch (e) {}
+
   function attachPin(pin, c) {
     var start = null
     var moved = false
@@ -500,35 +641,104 @@
     pin.addEventListener('mouseleave', function () { highlight(c.id, false); hidePreview() })
   }
 
+  // Element-anchored pins live in the fixed layer. They're still draggable: a drag
+  // re-anchors the pin to whatever element it's dropped on (or clears the anchor
+  // if dropped on bare page), mirroring the coordinate-pin drag behaviour.
+  function attachAnchoredPin(pin, c) {
+    var start = null, moved = false
+    pin.style.cursor = 'grab'
+    pin.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return
+      start = { x: e.clientX, y: e.clientY }; moved = false
+      try { pin.setPointerCapture(e.pointerId) } catch (err) {}
+      pin.style.cursor = 'grabbing'; hidePreview()
+      e.preventDefault(); e.stopPropagation()
+    })
+    pin.addEventListener('pointermove', function (e) {
+      if (!start) return
+      if (!moved && Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y) < 4) return
+      moved = true; draggingPin = pin
+      pin.classList.remove('pk-collapsed')
+      pin.style.left = e.clientX + 'px'
+      pin.style.top = e.clientY + 'px'
+      e.preventDefault()
+    })
+    pin.addEventListener('pointerup', function (e) {
+      var wasDrag = moved
+      if (start) { try { pin.releasePointerCapture(e.pointerId) } catch (err) {} pin.style.cursor = 'grab' }
+      start = null; moved = false; draggingPin = null
+      if (wasDrag) {
+        // Find the element under the drop point (ignoring the pin itself).
+        pin.style.pointerEvents = 'none'
+        var tgt = document.elementFromPoint(e.clientX, e.clientY)
+        pin.style.pointerEvents = ''
+        var a = makeAnchor(tgt, e.clientX, e.clientY)
+        var de = document.documentElement
+        c.x_pct = clamp01((e.pageX / de.scrollWidth) * 100)
+        c.y_pct = clamp01((e.pageY / de.scrollHeight) * 100)
+        c.anchor = a ? JSON.stringify(a) : null
+        c._anchor = a
+        fetch(API + '/api/comments/' + c.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ x_pct: c.x_pct, y_pct: c.y_pct, anchor: a }),
+        }).catch(function () {})
+        render() // a may now be null → pin moves to the coordinate layer
+        e.preventDefault(); e.stopPropagation()
+        return
+      }
+      showThread(c, pin)
+    })
+    pin.addEventListener('click', function (e) { e.stopPropagation() })
+    pin.addEventListener('mouseenter', function () { highlight(c.id, true); showPreview(c, pin) })
+    pin.addEventListener('mouseleave', function () { highlight(c.id, false); hidePreview() })
+  }
+
+  // Build the pin button (label + reply badge) shared by both layers.
+  function buildPin(c, s, i) {
+    var pin = el('button', 'pk-pin' + (s === 'resolved' ? ' resolved' : ''))
+    pin.setAttribute('data-id', c.id)
+    pin.style.background = STATUS[s].color
+    pin.title = '#' + (i + 1) + ' · ' + c.author + ' · ' + STATUS[s].label
+    var label = el('span', 'pk-pin-label')
+    label.textContent = s === 'resolved' ? '✓' : initials(c.author)
+    pin.appendChild(label)
+    var nr = repliesOf(c.id).length
+    if (nr > 0) {
+      var badge = el('span', 'pk-pin-badge')
+      badge.textContent = nr > 9 ? '9+' : nr
+      pin.appendChild(badge)
+    }
+    pin.__c = c
+    return pin
+  }
+
   function render() {
     sizeLayer()
     layer.innerHTML = ''
+    fixedLayer.innerHTML = ''
     tops().forEach(function (c, i) {
       var s = statusOf(c)
       // Only show pins placed in the device size currently being viewed.
       if (deviceOf(c) !== currentDevice) return
       // Resolved pins stay off the design (decluttered) until the toggle is on.
       if (s === 'resolved' && !showResolved) return
-      var pin = el('button', 'pk-pin' + (s === 'resolved' ? ' resolved' : ''))
-      pin.setAttribute('data-id', c.id)
-      pin.style.left = c.x_pct + '%'
-      pin.style.top = c.y_pct + '%'
-      pin.style.background = STATUS[s].color
-      pin.style.cursor = 'grab'
-      pin.title = '#' + (i + 1) + ' · ' + c.author + ' · ' + STATUS[s].label + ' — drag to move, click to open'
-      // Avatar: author initials (a check once resolved).
-      var label = el('span', 'pk-pin-label')
-      label.textContent = s === 'resolved' ? '✓' : initials(c.author)
-      pin.appendChild(label)
-      var nr = repliesOf(c.id).length
-      if (nr > 0) {
-        var badge = el('span', 'pk-pin-badge')
-        badge.textContent = nr > 9 ? '9+' : nr
-        pin.appendChild(badge)
+      var pin = buildPin(c, s, i)
+      if (anchorOf(c)) {
+        // Element-anchored: lives in the fixed layer, positioned by positionAnchored.
+        attachAnchoredPin(pin, c)
+        fixedLayer.appendChild(pin)
+      } else {
+        // Legacy coordinate pin: percentage of the document, scrolls with the page.
+        pin.style.left = c.x_pct + '%'
+        pin.style.top = c.y_pct + '%'
+        pin.style.cursor = 'grab'
+        pin.title += ' — drag to move, click to open'
+        attachPin(pin, c)
+        layer.appendChild(pin)
       }
-      attachPin(pin, c)
-      layer.appendChild(pin)
     })
+    positionAnchored()
     updateBtn()
     if (panelOpen) renderPanel()
   }
@@ -572,7 +782,7 @@
   }
 
   // ---- new comment composer ----
-  function openComposer(xPct, yPct, clientX, clientY) {
+  function openComposer(xPct, yPct, clientX, clientY, anchor) {
     closePopovers()
     var savedName = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
     var pop = el('div', 'pk-pop')
@@ -594,7 +804,7 @@
       fetch(API + '/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text, device: currentDevice }),
+        body: JSON.stringify({ page_slug: slug, x_pct: xPct, y_pct: yPct, author: name, body: text, device: currentDevice, anchor: anchor || null }),
       })
         .then(function (r) { return r.json() })
         .then(function (c) { if (c && c.id) comments.push(c); render() })
@@ -964,7 +1174,9 @@
       e.stopImmediatePropagation()
       var x = (e.pageX / document.documentElement.scrollWidth) * 100
       var y = (e.pageY / document.documentElement.scrollHeight) * 100
-      openComposer(x, y, e.clientX, e.clientY)
+      // Anchor the pin to the element under the click so it rides with it.
+      var anchor = makeAnchor(e.target, e.clientX, e.clientY)
+      openComposer(x, y, e.clientX, e.clientY, anchor)
     },
     true,
   )
@@ -1052,8 +1264,9 @@
     ensureCss()
     if (!chromeDoc.body.contains(bar)) chromeDoc.body.appendChild(bar)
     if (!chromeDoc.body.contains(panel)) chromeDoc.body.appendChild(panel)
-    if (!document.body.contains(layer)) {
-      document.body.appendChild(layer)
+    if (!document.body.contains(layer) || !document.body.contains(fixedLayer)) {
+      if (!document.body.contains(layer)) document.body.appendChild(layer)
+      if (!document.body.contains(fixedLayer)) document.body.appendChild(fixedLayer)
       render()
     }
     styleBar()

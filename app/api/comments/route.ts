@@ -47,6 +47,13 @@ export async function POST(req: Request) {
   }
 
   const device = DEVICE_SIZES.includes(body.device as DeviceSize) ? (body.device as string) : 'desktop'
+  // Optional DOM anchor (so the pin rides with its element). Stored as a JSON
+  // string; cap the size and only keep it for top-level pins, not replies.
+  let anchor: string | null = null
+  if (!parentId && body.anchor && typeof body.anchor === 'object') {
+    const s = JSON.stringify(body.anchor)
+    if (s.length <= 2000) anchor = s
+  }
   const comment = createComment({
     page_slug: slug,
     x_pct: parentId ? 0 : Number(body.x_pct) || 0,
@@ -56,6 +63,7 @@ export async function POST(req: Request) {
     parent_id: parentId,
     device,
     client_id: client ? client.id : null,
+    anchor,
   })
   emitCommentChange(slug)
 

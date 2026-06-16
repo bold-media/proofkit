@@ -54,6 +54,7 @@ export type Comment = {
   parent_id: string | null
   device: string
   created_at: string
+  anchor: string | null
   reactions?: Reaction[]
 }
 
@@ -190,12 +191,13 @@ export function createComment(c: {
   parent_id?: string | null
   device?: string
   client_id?: string | null
+  anchor?: string | null
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
   db.prepare(
-    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?)",
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, now)
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, now)
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
@@ -204,6 +206,12 @@ export function setCommentPosition(id: string, x: number, y: number): void {
   const cy = Math.max(0, Math.min(100, y))
   // Only top-level comments carry a pin; replies have no position.
   db.prepare('UPDATE comments SET x_pct = ?, y_pct = ? WHERE id = ? AND parent_id IS NULL').run(cx, cy, id)
+}
+
+// Re-anchor (or clear) a pin's DOM anchor — used when a pin is dragged onto a
+// different element. Pass null to drop back to coordinate-only positioning.
+export function setCommentAnchor(id: string, anchor: string | null): void {
+  db.prepare('UPDATE comments SET anchor = ? WHERE id = ? AND parent_id IS NULL').run(anchor, id)
 }
 
 export function setCommentStatus(id: string, status: CommentStatus): void {
