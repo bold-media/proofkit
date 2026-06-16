@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 
-import { getCurrentVersion, getOwnerName, getPage, getVersion, isProjectMember, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { getCurrentVersion, getOwnerName, getPage, getVersion, isProjectMember, listVersions, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
 import { currentClient } from '@/lib/client'
 import { isOwner } from '@/lib/owner'
 import { readSiteFile } from '@/lib/sites'
@@ -70,8 +70,25 @@ function esc(s: string): string {
 // preview it at desktop / tablet / mobile widths. The design itself (with the
 // comment overlay) is loaded inside the iframe via ?raw=1, so its own
 // responsive CSS reacts to the real frame width.
-function frameHtml(slug: string, name: string): string {
+function frameHtml(
+  slug: string,
+  name: string,
+  versions: { id: string; label: string }[],
+  currentId: string | null,
+): string {
   const s = JSON.stringify(slug)
+  // Clients can flip between versions when there's more than one.
+  const verTabs =
+    versions.length > 1
+      ? `<div class="pk-ver-group">${versions
+          .map(
+            (v) =>
+              `<button class="pk-ver${v.id === currentId ? ' on' : ''}" data-v="${v.id}">${esc(v.label)}${
+                v.id === currentId ? '<span class="pk-live">live</span>' : ''
+              }</button>`,
+          )
+          .join('')}</div><div class="pk-bar-sep"></div>`
+      : ''
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(name)}</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;height:100%}
@@ -80,6 +97,11 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 .pk-dev-bar button{border:1px solid transparent;background:none;color:#5f5e5a;font:600 13px/1 inherit;padding:8px 14px;border-radius:8px;cursor:pointer}
 .pk-dev-bar button:hover{background:#f1f2f4}
 .pk-dev-bar button.on{background:#eef2ff;color:#4f46e5}
+.pk-ver-group{display:inline-flex;gap:2px;background:#f1f2f4;border-radius:9px;padding:2px}
+.pk-ver{display:inline-flex;align-items:center;gap:5px;padding:6px 11px!important;border-radius:7px!important;font-size:12px!important}
+.pk-ver.on{background:#fff!important;color:#1c2024!important;box-shadow:0 1px 2px rgba(16,24,40,.1)}
+.pk-live{font:700 9px/1 inherit;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#16a34a;border-radius:4px;padding:2px 4px}
+.pk-bar-sep{width:1px;height:22px;background:#e6e8ec;margin:0 4px}
 .pk-dev-stage{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;align-items:stretch}
 .pk-dev-stage.framed{padding:20px}
 #pk-frame{flex:none;width:100%;border:0;background:#fff}
@@ -88,6 +110,7 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 <link rel="stylesheet" href="/overlay.css" data-proof-css="1"></head>
 <body>
 <div class="pk-dev-bar">
+${verTabs}
 <button data-w="full" class="on">Desktop</button>
 <button data-w="768">Tablet</button>
 <button data-w="390">Mobile</button>
@@ -97,8 +120,14 @@ body{display:flex;flex-direction:column;background:#eceef1;font-family:ui-sans-s
 </div>
 <script>
 (function(){
-var stage=document.getElementById('pk-stage'),frame=document.getElementById('pk-frame'),btns=document.querySelectorAll('.pk-dev-bar button');
+var SLUG=${s};
+var stage=document.getElementById('pk-stage'),frame=document.getElementById('pk-frame'),btns=document.querySelectorAll('.pk-dev-bar button[data-w]');
 var current='full';
+// Version switching: reload the frame at the chosen version (preserving device).
+var curV='';
+var verBtns=document.querySelectorAll('.pk-ver');
+function frameSrc(){return '/project/'+SLUG+'?raw=1&framed=1'+(curV?'&v='+encodeURIComponent(curV):'');}
+verBtns.forEach(function(b){b.addEventListener('click',function(){curV=b.getAttribute('data-v');verBtns.forEach(function(x){x.classList.toggle('on',x===b)});frame.src=frameSrc();});});
 function deviceOf(w){return w==='768'?'tablet':w==='390'?'mobile':'desktop'}
 function widthOf(d){return d==='tablet'?'768':d==='mobile'?'390':'full'}
 function postDevice(){try{frame.contentWindow.postMessage({pk:'device',device:deviceOf(current)},'*')}catch(e){}}
@@ -158,7 +187,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   // editor preview) request the bare design + overlay with ?raw=1.
   const raw = new URL(req.url).searchParams.get('raw') === '1'
   if (!raw) {
-    return new Response(frameHtml(slug, page.name), {
+    const vers = listVersions(slug).map((v) => ({ id: v.id, label: v.label }))
+    return new Response(frameHtml(slug, page.name, vers, page.current_version), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
     })
   }

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 
-import type { Approval, ClientPage, Comment, CommentStatus } from '@/lib/data'
+import type { Approval, ClientPage, Comment, CommentStatus, Version } from '@/lib/data'
 import { DEVICE_LABEL, DEVICE_SIZES, type DeviceSize } from '@/lib/devices'
 import { REACTION_EMOJI } from '@/lib/reactions'
 import FolderDrop, { type PickedFile } from '../../FolderDrop'
@@ -120,10 +120,14 @@ export default function Editor({
   page,
   initialComments,
   approvals = [],
+  versions = [],
+  currentVersion = null,
 }: {
   page: ClientPage
   initialComments: Comment[]
   approvals?: Approval[]
+  versions?: Version[]
+  currentVersion?: string | null
 }) {
   const router = useRouter()
   const [name, setName] = useState(page.name)
@@ -138,6 +142,10 @@ export default function Editor({
   const [memberCount, setMemberCount] = useState(0)
   const [memberNames, setMemberNames] = useState<string[]>([])
   const [accessOpen, setAccessOpen] = useState(false)
+  // Which version the preview is showing (defaults to the live one).
+  const [viewVersion, setViewVersion] = useState<string | null>(currentVersion)
+  const [publishing, setPublishing] = useState(false)
+  const [previewNonce, setPreviewNonce] = useState(0)
   const [confirmDel, setConfirmDel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [filter, setFilter] = useState<'all' | CommentStatus>('all')
@@ -230,7 +238,7 @@ export default function Editor({
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
-    if (frame.current) frame.current.src = `/project/${page.slug}?raw=1&t=${Date.now()}`
+    setPreviewNonce((n) => n + 1)
     router.refresh()
   }
 
@@ -238,13 +246,26 @@ export default function Editor({
     setUploading(true)
     try {
       await uploadDesign(page.slug, files)
-      if (frame.current) frame.current.src = `/project/${page.slug}?raw=1&t=${Date.now()}`
+      // The upload created a new live version — follow it and reload the preview.
+      setViewVersion(null)
+      setPreviewNonce((n) => n + 1)
       router.refresh()
     } catch (e) {
       alert((e as Error).message)
     } finally {
       setUploading(false)
     }
+  }
+
+  async function publishVersion(versionId: string) {
+    setPublishing(true)
+    await fetch(`/api/pages/${page.slug}/version`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version_id: versionId }),
+    })
+    setPublishing(false)
+    router.refresh()
   }
 
   function copyLink() {
@@ -476,8 +497,8 @@ export default function Editor({
             <>
               <label className="field-label">Design folder</label>
               <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
-                Hosted folder (main file: <code>{page.entry}</code>). Drop a folder again to replace it —
-                comments are kept.
+                Hosted folder (main file: <code>{page.entry}</code>). Drop a folder again to upload a new
+                version{versions.length > 1 ? ` (you have ${versions.length})` : ''} — comments are kept.
               </p>
               <FolderDrop busy={uploading} onPick={replaceFolder} />
             </>
@@ -562,15 +583,49 @@ export default function Editor({
         </div>
       </div>
 
-      <label className="field-label" style={{ marginTop: 22 }}>
-        Preview — exactly what your client sees
-      </label>
-      <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
-        Your client clicks <strong>“Leave feedback”</strong> (bottom-right) to drop pins, and{' '}
-        <strong>“Comments”</strong> to open the list. Everything shows up here too — set a status or reply
-        from either place.
+      <div className="row" style={{ justifyContent: 'space-between', marginTop: 22, gap: 12, flexWrap: 'wrap' }}>
+        <label className="field-label" style={{ margin: 0 }}>
+          Preview — exactly what your client sees
+        </label>
+        {versions.length > 1 && (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <div className="version-pills">
+              {versions.map((v) => {
+                const shown = (viewVersion ?? currentVersion) === v.id
+                const live = currentVersion === v.id
+                return (
+                  <button
+                    key={v.id}
+                    className={shown ? 'vpill on' : 'vpill'}
+                    onClick={() => setViewVersion(v.id)}
+                    title={new Date(v.created_at).toLocaleString()}
+                  >
+                    {v.label}
+                    {live && <span className="vlive">live</span>}
+                  </button>
+                )
+              })}
+            </div>
+            {(viewVersion ?? currentVersion) !== currentVersion && (
+              <button className="btn btn-sm" disabled={publishing} onClick={() => publishVersion(viewVersion!)}>
+                {publishing ? '…' : 'Make this version live'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="muted" style={{ fontSize: 13, margin: '6px 0 8px' }}>
+        {(viewVersion ?? currentVersion) === currentVersion
+          ? 'This is the live design your client sees. Drop a folder above to upload a new version.'
+          : 'Previewing an older version — clients still see the live one until you publish it.'}
       </p>
-      <iframe ref={frame} className="preview-frame" src={`/project/${page.slug}?raw=1`} title="Preview" />
+      <iframe
+        key={`${viewVersion ?? currentVersion ?? 'cur'}-${previewNonce}`}
+        ref={frame}
+        className="preview-frame"
+        src={`/project/${page.slug}?raw=1${(viewVersion ?? currentVersion) ? `&v=${viewVersion ?? currentVersion}` : ''}`}
+        title="Preview"
+      />
 
       {confirmDel && (
         <div
