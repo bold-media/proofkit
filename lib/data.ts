@@ -241,6 +241,15 @@ export function setSetting(key: string, value: string): void {
   ).run(key, value)
 }
 
+// The owner's display name, shown on their comments/replies (falls back to
+// "Owner" when unset).
+export function getOwnerName(): string {
+  return getSetting('owner_name') || 'Owner'
+}
+export function setOwnerName(name: string): void {
+  setSetting('owner_name', name.slice(0, 80))
+}
+
 // ---- Password hashing (scrypt) ----
 function hashPassword(pw: string): string {
   const salt = crypto.randomBytes(16).toString('hex')

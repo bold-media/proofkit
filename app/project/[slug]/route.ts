@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 
-import { getPage, isProjectMember, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { getOwnerName, getPage, isProjectMember, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
 import { currentClient } from '@/lib/client'
 import { isOwner } from '@/lib/owner'
 import { readSiteFile } from '@/lib/sites'
@@ -192,7 +192,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   // visitor gave at the gate) so the overlay attributes their comments and can
   // offer a "tagged me" filter without them re-typing it.
   const cookieName = (await cookies()).get(`pk_name_${slug}`)?.value || ''
-  const viewerName = owner ? 'Owner' : client?.name || cookieName
+  const viewerName = owner ? getOwnerName() : client?.name || cookieName
   const nameAttr = viewerName ? ` data-proof-name="${esc(viewerName)}"` : ''
   const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}${nameAttr}></script>`
 

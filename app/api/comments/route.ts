@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { createComment, getComment, getPage, listComments } from '@/lib/data'
+import { createComment, getComment, getOwnerName, getPage, listComments } from '@/lib/data'
 import { currentClient } from '@/lib/client'
 import { DEVICE_SIZES, DEVICE_LABEL, type DeviceSize } from '@/lib/devices'
 import { emitCommentChange } from '@/lib/events'
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     page_slug: slug,
     x_pct: parentId ? 0 : Number(body.x_pct) || 0,
     y_pct: parentId ? 0 : Number(body.y_pct) || 0,
-    author: client ? client.name : String(body.author || 'Guest').slice(0, 80),
+    author: owner ? getOwnerName() : client ? client.name : String(body.author || 'Guest').slice(0, 80),
     body: text.slice(0, 2000),
     parent_id: parentId,
     device,

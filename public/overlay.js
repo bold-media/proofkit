@@ -599,8 +599,10 @@
           var tr = trig.getBoundingClientRect()
           pin.classList.add('pk-collapsed')
           pin.style.display = ''
-          pin.style.left = Math.min(tr.left + tr.width / 2, vw - 16) + 'px'
-          pin.style.top = (tr.bottom + 14 + collapsed * 22) + 'px'
+          // Sit as a badge on the trigger's top-right corner so it reads as "on"
+          // the burger (not floating below it); the button stays mostly tappable.
+          pin.style.left = Math.min(tr.right, vw - 13) + 'px'
+          pin.style.top = (Math.max(tr.top, 13) + collapsed * 24) + 'px'
           collapsed++
         } else {
           pin.style.display = 'none'

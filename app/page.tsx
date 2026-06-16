@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-import { listPages } from '@/lib/data'
+import { getOwnerName, listPages } from '@/lib/data'
 import { isOwner } from '@/lib/owner'
 import NewPage from './NewPage'
 import PageList from './PageList'
@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function Home() {
   if (!(await isOwner())) redirect('/login')
   const pages = listPages()
+  const ownerName = getOwnerName()
 
   return (
     <div className="wrap">
@@ -20,7 +21,7 @@ export default async function Home() {
           <span className="brand-dot" />
           Proofkit
         </div>
-        <AccountControls />
+        <AccountControls name={ownerName} />
       </div>
 
       <h1>Your pages</h1>
