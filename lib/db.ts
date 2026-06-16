@@ -106,6 +106,8 @@ function init(): DatabaseSync {
   if (!ccols.includes('image')) db.exec('ALTER TABLE comments ADD COLUMN image TEXT')
   // Which design version a comment was left on (null = the page's first/current).
   if (!ccols.includes('version_id')) db.exec('ALTER TABLE comments ADD COLUMN version_id TEXT')
+  // Which version a comment was marked fixed/addressed in (null = not fixed).
+  if (!ccols.includes('fixed_in')) db.exec('ALTER TABLE comments ADD COLUMN fixed_in TEXT')
 
   // ---- design versions ----
   // Each upload is a snapshot; the live design is the page's current_version.

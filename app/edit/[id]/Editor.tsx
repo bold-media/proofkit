@@ -315,6 +315,10 @@ export default function Editor({
   const counts = { open: 0, progress: 0, resolved: 0 } as Record<CommentStatus, number>
   tops.forEach((c) => (counts[statusOf(c)] += 1))
   const openCount = counts.open + counts.progress
+  // "What changed" for the live version: how much prior feedback it addressed.
+  const versionLabel = (id: string | null) => (id ? versions.find((v) => v.id === id)?.label : undefined)
+  const liveLabel = versionLabel(currentVersion)
+  const addressedHere = tops.filter((c) => c.fixed_in === currentVersion && currentVersion).length
   // Open + In progress first so the work-to-do floats to the top of a long list.
   const sortedTops = [...tops].sort((a, b) => {
     const rank = (c: Comment) => (statusOf(c) === 'resolved' ? 1 : 0)
@@ -520,6 +524,13 @@ export default function Editor({
           <label className="field-label">
             Comments {openCount > 0 && <span className="badge open">{openCount} open</span>}
           </label>
+          {versions.length > 1 && tops.length > 0 && (
+            <p className="muted" style={{ fontSize: 13, margin: '0 0 10px' }}>
+              <strong style={{ color: 'var(--text)' }}>{liveLabel}</strong> —{' '}
+              <strong style={{ color: 'var(--success)' }}>{addressedHere} addressed</strong> · {openCount}{' '}
+              outstanding. Resolve a comment to mark it fixed in {liveLabel}.
+            </p>
+          )}
           {tops.length === 0 ? (
             <p className="muted" style={{ fontSize: 14 }}>
               No comments yet. Share the live link and feedback shows up here.
@@ -569,6 +580,7 @@ export default function Editor({
                       number={numberById.get(c.id) || 0}
                       replies={repliesByParent[c.id] || []}
                       names={peopleNames}
+                      fixedLabel={versionLabel(c.fixed_in)}
                       defaultOpen={false}
                       onStatus={(s) => setStatus(c.id, s)}
                       onReply={(body) => reply(c.id, body)}
@@ -799,6 +811,7 @@ function CommentCard({
   number,
   replies,
   names,
+  fixedLabel,
   defaultOpen,
   onStatus,
   onReply,
@@ -809,6 +822,7 @@ function CommentCard({
   number: number
   replies: Comment[]
   names: string[]
+  fixedLabel?: string
   defaultOpen: boolean
   onStatus: (s: CommentStatus) => void
   onReply: (body: string) => void
@@ -842,7 +856,7 @@ function CommentCard({
         </span>
         <span className="cdev">{DEVICE_LABEL[comment.device] || 'Desktop'}</span>
         <span className="cbadge" style={{ background: STATUS[status].color }}>
-          {STATUS[status].label}
+          {status === 'resolved' && fixedLabel ? `Fixed in ${fixedLabel}` : STATUS[status].label}
         </span>
       </button>
 

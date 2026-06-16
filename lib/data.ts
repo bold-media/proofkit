@@ -58,6 +58,7 @@ export type Comment = {
   anchor: string | null
   image: string | null
   version_id: string | null
+  fixed_in: string | null
   reactions?: Reaction[]
 }
 
@@ -233,6 +234,19 @@ export function setCommentStatus(id: string, status: CommentStatus): void {
     status === 'resolved' ? 1 : 0,
     id,
   )
+  // Resolving records WHICH version addressed it (only meaningful with >1 version);
+  // reopening clears that. This powers the per-version "what changed" checklist.
+  const c = getComment(id)
+  if (c) {
+    if (status === 'resolved') {
+      const vs = listVersions(c.page_slug)
+      const cur = getCurrentVersion(c.page_slug)
+      const fixedIn = vs.length > 1 && cur ? cur.id : null
+      db.prepare('UPDATE comments SET fixed_in = ? WHERE id = ?').run(fixedIn, id)
+    } else {
+      db.prepare('UPDATE comments SET fixed_in = NULL WHERE id = ?').run(id)
+    }
+  }
 }
 
 export function deleteComment(id: string): void {
