@@ -63,6 +63,53 @@ export function clearSite(slug: string): void {
   fs.mkdirSync(base, { recursive: true })
 }
 
+// ---- versioned folders ----
+// A version's files live at sites/<slug>/<dir>/ (dir='' is the v1 root). Other
+// versions' subdirs (named _vN) are kept separate.
+const VDIR_RE = /^_v\d+$/
+function versionBase(slug: string, dir: string): string {
+  return dir ? path.join(siteDir(slug), dir) : siteDir(slug)
+}
+export function clearVersionDir(slug: string, dir: string): void {
+  const base = versionBase(slug, dir)
+  fs.mkdirSync(base, { recursive: true })
+  if (dir) {
+    fs.rmSync(base, { recursive: true, force: true })
+    fs.mkdirSync(base, { recursive: true })
+  } else {
+    // Root v1: clear its files but never the sibling _vN version dirs.
+    for (const e of fs.readdirSync(base)) {
+      if (VDIR_RE.test(e)) continue
+      fs.rmSync(path.join(base, e), { recursive: true, force: true })
+    }
+  }
+}
+export function appendVersionFiles(slug: string, dir: string, files: { path: string; bytes: Buffer }[]): void {
+  const base = versionBase(slug, dir)
+  fs.mkdirSync(base, { recursive: true })
+  for (const f of files) {
+    const rel = f.path.replace(/^\/+/, '')
+    if (!rel || rel.includes('..')) continue
+    const dest = safeJoin(base, rel)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.writeFileSync(dest, f.bytes)
+  }
+}
+export function listVersionFiles(slug: string, dir: string): string[] {
+  const base = versionBase(slug, dir)
+  const out: string[] = []
+  const walk = (d: string, prefix: string) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (!prefix && VDIR_RE.test(e.name)) continue // skip other versions at the root
+      const rel = prefix ? `${prefix}/${e.name}` : e.name
+      if (e.isDirectory()) walk(path.join(d, e.name), rel)
+      else out.push(rel)
+    }
+  }
+  if (fs.existsSync(base)) walk(base, '')
+  return out
+}
+
 // Write (append) files into a site folder without clearing it.
 export function appendSiteFiles(slug: string, files: { path: string; bytes: Buffer }[]): void {
   const base = siteDir(slug)

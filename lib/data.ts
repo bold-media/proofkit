@@ -10,6 +10,7 @@ export type Page = {
   entry: string | null
   source_url: string | null
   view_password: string | null
+  current_version: string | null
   created_at: string
   updated_at: string
 }
@@ -56,6 +57,7 @@ export type Comment = {
   created_at: string
   anchor: string | null
   image: string | null
+  version_id: string | null
   reactions?: Reaction[]
 }
 
@@ -101,6 +103,9 @@ export function createPage(name: string, html: string, sourceUrl?: string): Page
   db.prepare(
     'INSERT INTO pages (slug, name, html, source_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(slug, name || 'Untitled', html || '', sourceUrl || null, now, now)
+  // Every page starts with a v1 (inline html lives on the version; a folder
+  // upload fills its entry later).
+  createVersion(slug, { html: html || null, source_url: sourceUrl || null })
   return getPage(slug)!
 }
 
@@ -129,6 +134,8 @@ export function setPageEntry(slug: string, entry: string | null): void {
 
 export function deletePage(slug: string): void {
   db.prepare('DELETE FROM comments WHERE page_slug = ?').run(slug)
+  db.prepare('DELETE FROM versions WHERE page_slug = ?').run(slug)
+  db.prepare('DELETE FROM approvals WHERE page_slug = ?').run(slug)
   db.prepare('DELETE FROM pages WHERE slug = ?').run(slug)
   removeSite(slug)
 }
@@ -195,12 +202,15 @@ export function createComment(c: {
   anchor?: string | null
   is_owner?: boolean
   image?: string | null
+  version_id?: string | null
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
+  // Tag with the version it was left on (so a re-upload can carry it forward).
+  const versionId = c.version_id !== undefined ? c.version_id : getCurrentVersion(c.page_slug)?.id || null
   db.prepare(
-    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, is_owner, image, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?, ?, ?)",
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, c.is_owner ? 1 : 0, c.image || null, now)
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, is_owner, image, version_id, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, c.is_owner ? 1 : 0, c.image || null, versionId, now)
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
@@ -254,6 +264,76 @@ export function setOwnerName(name: string): void {
   setSetting('owner_name', n)
   // Re-label the owner's existing comments/replies so the new name shows there too.
   db.prepare('UPDATE comments SET author = ? WHERE is_owner = 1').run(n)
+}
+
+// ---- design versions ----
+export type Version = {
+  id: string
+  page_slug: string
+  n: number
+  label: string
+  dir: string
+  entry: string | null
+  html: string | null
+  source_url: string | null
+  created_at: string
+}
+
+export function listVersions(slug: string): Version[] {
+  return db
+    .prepare('SELECT * FROM versions WHERE page_slug = ? ORDER BY n ASC')
+    .all(slug)
+    .map((r) => plain<Version>(r))
+}
+
+export function getVersion(id: string): Version | undefined {
+  const row = db.prepare('SELECT * FROM versions WHERE id = ?').get(id)
+  return row ? plain<Version>(row) : undefined
+}
+
+export function getCurrentVersion(slug: string): Version | undefined {
+  const page = getPage(slug)
+  if (page?.current_version) {
+    const v = getVersion(page.current_version)
+    if (v) return v
+  }
+  // Fallback to the latest version if the pointer is missing.
+  return db
+    .prepare('SELECT * FROM versions WHERE page_slug = ? ORDER BY n DESC LIMIT 1')
+    .all(slug)
+    .map((r) => plain<Version>(r))[0]
+}
+
+// Start a new version for a page (the next sequence number). Folder uploads pass
+// a dir; inline-HTML versions pass html. Becomes the page's current version.
+export function createVersion(
+  slug: string,
+  opts: { entry?: string | null; html?: string | null; source_url?: string | null } = {},
+): Version {
+  const row = db.prepare('SELECT MAX(n) AS m FROM versions WHERE page_slug = ?').get(slug) as { m: number | null }
+  const n = (row?.m || 0) + 1
+  const id = makeId(10)
+  const now = new Date().toISOString()
+  // v1 keeps the legacy root dir so existing serving is unchanged; later versions
+  // get their own subdir.
+  const dir = n === 1 ? '' : `_v${n}`
+  db.prepare(
+    'INSERT INTO versions (id, page_slug, n, label, dir, entry, html, source_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, slug, n, `v${n}`, dir, opts.entry || null, opts.html || null, opts.source_url || null, now)
+  db.prepare('UPDATE pages SET current_version = ? WHERE slug = ?').run(id, slug)
+  return getVersion(id)!
+}
+
+export function setVersionEntry(id: string, entry: string): void {
+  db.prepare('UPDATE versions SET entry = ? WHERE id = ?').run(entry, id)
+}
+
+export function setVersionHtml(id: string, html: string): void {
+  db.prepare('UPDATE versions SET html = ? WHERE id = ?').run(html, id)
+}
+
+export function setCurrentVersion(slug: string, id: string): void {
+  db.prepare('UPDATE pages SET current_version = ? WHERE slug = ?').run(id, slug)
 }
 
 // ---- approvals (client sign-off) ----

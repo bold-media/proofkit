@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
-import { getPage, setPageEntry } from '@/lib/data'
+import { createVersion, getCurrentVersion, getPage, setPageEntry, setVersionEntry } from '@/lib/data'
 import { isOwner } from '@/lib/owner'
-import { appendSiteFiles, clearSite, listSiteFiles, pickEntry } from '@/lib/sites'
+import { appendVersionFiles, clearVersionDir, listVersionFiles, pickEntry } from '@/lib/sites'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -19,7 +19,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const paths = JSON.parse(String(form.get('paths') || '[]')) as string[]
   if (fileList.length === 0) return NextResponse.json({ error: 'No files' }, { status: 400 })
 
-  if (form.get('reset') === 'true') clearSite(id)
+  // The first batch (reset=true) targets a version: reuse the current one if it's
+  // still empty (a brand-new page's v1), otherwise start a NEW version (re-upload).
+  if (form.get('reset') === 'true') {
+    const cur = getCurrentVersion(id)
+    const empty = cur && !cur.entry && !(cur.html && cur.html.trim())
+    const v = empty ? cur : createVersion(id)
+    clearVersionDir(id, v.dir)
+  }
+  const cur = getCurrentVersion(id)
+  if (!cur) return NextResponse.json({ error: 'No version' }, { status: 500 })
 
   const files = await Promise.all(
     fileList.map(async (f, i) => ({
@@ -27,11 +36,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       bytes: Buffer.from(await f.arrayBuffer()),
     })),
   )
-  appendSiteFiles(id, files)
+  appendVersionFiles(id, cur.dir, files)
 
-  // Recompute the entry from everything uploaded so far.
-  const entry = pickEntry(listSiteFiles(id))
-  if (entry) setPageEntry(id, entry)
+  // Recompute the entry from everything uploaded into this version so far.
+  const entry = pickEntry(listVersionFiles(id, cur.dir))
+  if (entry) {
+    setVersionEntry(cur.id, entry)
+    setPageEntry(id, entry) // keep the page's entry in sync with the live version
+  }
 
-  return NextResponse.json({ ok: true, entry })
+  return NextResponse.json({ ok: true, entry, version: cur.n })
 }

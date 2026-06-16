@@ -104,6 +104,41 @@ function init(): DatabaseSync {
   // Optional image attachment (stored file name under /uploads, served via the
   // attachments route).
   if (!ccols.includes('image')) db.exec('ALTER TABLE comments ADD COLUMN image TEXT')
+  // Which design version a comment was left on (null = the page's first/current).
+  if (!ccols.includes('version_id')) db.exec('ALTER TABLE comments ADD COLUMN version_id TEXT')
+
+  // ---- design versions ----
+  // Each upload is a snapshot; the live design is the page's current_version.
+  // Folder files live under sites/<slug>/<dir>/ (dir='' for v1, '_v2'… for later).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS versions (
+      id TEXT PRIMARY KEY,
+      page_slug TEXT NOT NULL,
+      n INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      dir TEXT NOT NULL DEFAULT '',
+      entry TEXT,
+      html TEXT,
+      source_url TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS versions_page_idx ON versions (page_slug);
+  `)
+  const pcols = (db.prepare('PRAGMA table_info(pages)').all() as { name: string }[]).map((c) => c.name)
+  if (!pcols.includes('current_version')) db.exec('ALTER TABLE pages ADD COLUMN current_version TEXT')
+  // Backfill a "v1" for every page that doesn't have one yet (metadata only — the
+  // existing files stay at sites/<slug>/, i.e. dir='').
+  const now0 = new Date().toISOString()
+  const orphans = db
+    .prepare('SELECT slug, entry, html, source_url FROM pages WHERE slug NOT IN (SELECT page_slug FROM versions)')
+    .all() as { slug: string; entry: string | null; html: string | null; source_url: string | null }[]
+  for (const p of orphans) {
+    const vid = makeId(10)
+    db.prepare(
+      "INSERT INTO versions (id, page_slug, n, label, dir, entry, html, source_url, created_at) VALUES (?, ?, 1, 'v1', '', ?, ?, ?, ?)",
+    ).run(vid, p.slug, p.entry, p.html, p.source_url, now0)
+    db.prepare('UPDATE pages SET current_version = ? WHERE slug = ?').run(vid, p.slug)
+  }
   // Whether a client still needs to set their own name + password (first login).
   const clcols = (db.prepare('PRAGMA table_info(clients)').all() as { name: string }[]).map((c) => c.name)
   if (clcols.length && !clcols.includes('must_setup')) {

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 
-import { getOwnerName, getPage, isProjectMember, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
+import { getCurrentVersion, getOwnerName, getPage, getVersion, isProjectMember, pageHasMembers, pageHasPassword, pageUnlockToken } from '@/lib/data'
 import { currentClient } from '@/lib/client'
 import { isOwner } from '@/lib/owner'
 import { readSiteFile } from '@/lib/sites'
@@ -163,26 +163,34 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     })
   }
 
+  // Which version to serve: ?v=<id> (must belong to this page) or the current one.
+  const reqVersion = new URL(req.url).searchParams.get('v')
+  const reqV = reqVersion ? getVersion(reqVersion) : null
+  const version = reqV && reqV.page_slug === slug ? reqV : getCurrentVersion(slug)
+
   let html: string
   let needsBase = false
+  let baseDir = ''
 
-  if (page.entry) {
-    // Folder-hosted design: read its main HTML file from disk.
-    const bytes = readSiteFile(slug, page.entry)
+  if (version?.entry) {
+    // Folder-hosted design: read this version's main HTML from its dir.
+    baseDir = version.dir ? version.dir + '/' : ''
+    const bytes = readSiteFile(slug, baseDir + version.entry)
     html = bytes
       ? bytes.toString('utf8')
       : `<!doctype html><html><body style="font-family:sans-serif;padding:40px">Folder is missing its files. Re-upload it in Proofkit.</body></html>`
     needsBase = !!bytes
   } else {
     html =
+      version?.html?.trim() ||
       page.html?.trim() ||
       `<!doctype html><html><body style="font-family:sans-serif;padding:40px;color:#6b7280">
         <h2>Nothing here yet</h2><p>Add this page's HTML or upload a folder in Proofkit, then refresh.</p></body></html>`
   }
 
   // For folder designs, a <base> makes the design's relative links (css/js/images)
-  // resolve to /project/<slug>/… where the asset route serves them.
-  const baseTag = needsBase ? `<base href="/project/${slug}/">` : ''
+  // resolve to /project/<slug>/<versionDir>/… where the asset route serves them.
+  const baseTag = needsBase ? `<base href="/project/${slug}/${baseDir}">` : ''
   // Tell the overlay whether the viewer is the owner, so it can show owner-only
   // controls (status changes, delete). The API still enforces this server-side.
   const ownerAttr = owner ? ' data-proof-owner="1"' : ''
