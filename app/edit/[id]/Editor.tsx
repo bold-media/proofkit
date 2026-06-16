@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 import type { Approval, ClientPage, Comment, CommentStatus, Version } from '@/lib/data'
@@ -85,6 +85,66 @@ const ClipIcon = () => (
     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
   </svg>
 )
+
+// A compare pane: renders the design at a real device width (so its desktop
+// layout actually triggers) and scales it down to fit the narrow column.
+function CompareFrame({ src, width }: { src: string; width: 'full' | 768 | 390 }) {
+  const logical = width === 'full' ? 1280 : width
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.5)
+  const [h, setH] = useState(1400)
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const measure = () => setScale(Math.min(1, (el.clientWidth - 24) / logical))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [logical])
+  function onLoad(e: SyntheticEvent<HTMLIFrameElement>) {
+    try {
+      const d = e.currentTarget.contentDocument
+      if (d) setH(Math.max(600, d.documentElement.scrollHeight))
+    } catch {
+      /* cross-origin (shouldn't happen) */
+    }
+  }
+  return (
+    <div ref={stageRef} className="compare-stage">
+      <div
+        style={{
+          width: logical * scale,
+          height: h * scale,
+          position: 'relative',
+          overflow: 'hidden',
+          flex: 'none',
+          borderRadius: 8,
+          background: '#fff',
+          boxShadow: '0 4px 16px rgba(16,24,40,0.08)',
+        }}
+      >
+        <iframe
+          key={`${src}-${logical}`}
+          onLoad={onLoad}
+          src={src}
+          title="compare"
+          style={{
+            width: logical,
+            height: h,
+            border: 0,
+            background: '#fff',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
 
 function CommentImage({ image }: { image?: string | null }) {
   if (!image) return null
@@ -688,15 +748,10 @@ export default function Editor({
                     </option>
                   ))}
                 </select>
-                <div className="compare-stage">
-                  <iframe
-                    key={`${side.v}-${compareWidth}`}
-                    className="compare-frame"
-                    style={{ width: compareWidth === 'full' ? '100%' : `${compareWidth}px` }}
-                    src={`/project/${page.slug}?raw=1&bare=1&v=${side.v}`}
-                    title={`Compare ${i === 0 ? 'A' : 'B'}`}
-                  />
-                </div>
+                <CompareFrame
+                  src={`/project/${page.slug}?raw=1&bare=1&v=${side.v}`}
+                  width={compareWidth}
+                />
               </div>
             ))}
           </div>
