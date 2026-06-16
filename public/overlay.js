@@ -457,12 +457,32 @@
   // burger menu hides/relocates when the menu closes). We store a structural path
   // (child indices from <html>) plus the click's fraction within the element.
   function clamp01f(v) { return Math.max(0, Math.min(1, v || 0)) }
+  // Our own injected elements (layers, pins, chrome) must NOT count toward a
+  // path's child indices — they're appended to <body> alongside design content
+  // (and dynamic widgets like a burger drawer), so counting them would make the
+  // path shift between sessions and resolve to the wrong element.
+  function isOurNode(el) {
+    if (!el || el.nodeType !== 1) return false
+    var cn = el.className
+    if (typeof cn === 'string') {
+      var t = cn.split(/\s+/)
+      for (var j = 0; j < t.length; j++) if (t[j].indexOf('pk-') === 0) return true
+    }
+    return false
+  }
+  function designChildren(parent) {
+    var out = []
+    var ch = parent.children
+    for (var i = 0; i < ch.length; i++) if (!isOurNode(ch[i])) out.push(ch[i])
+    return out
+  }
   function elPath(node) {
     var path = []
     while (node && node.nodeType === 1 && node !== document.documentElement) {
       var parent = node.parentNode
       if (!parent || parent.nodeType !== 1) break
-      path.unshift(Array.prototype.indexOf.call(parent.children, node))
+      if (isOurNode(node)) return [] // never anchor to our own UI
+      path.unshift(designChildren(parent).indexOf(node))
       node = parent
     }
     return path
@@ -471,7 +491,7 @@
     var node = document.documentElement
     for (var i = 0; i < path.length; i++) {
       if (!node) return null
-      node = node.children[path[i]]
+      node = designChildren(node)[path[i]]
     }
     return node || null
   }
