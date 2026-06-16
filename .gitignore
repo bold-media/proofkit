@@ -7,3 +7,4 @@ node_modules
 .DS_Store
 next-env.d.ts
 uploads/
+sites/*/_v*/
