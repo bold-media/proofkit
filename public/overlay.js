@@ -932,24 +932,11 @@
   // ---- placing interactions (persistent while in comment mode) ----
   // While leaving feedback, the whole design is a comment canvas: a click drops
   // a pin instead of doing what it normally would. Our own UI is excluded.
-  // Disclosure controls (burger menus, accordions, dropdowns) must still work in
-  // feedback mode so viewers can open them to see/comment on what's inside. These
-  // reveal in-page content rather than navigate, so we let the click through
-  // instead of dropping a pin. Plain links, cards and CTAs are NOT in this list —
-  // clicking those still leaves a comment (navigation stays blocked).
-  var TOGGLE_SEL =
-    'summary,[aria-expanded],[aria-controls],[aria-haspopup],[data-toggle],[data-bs-toggle],' +
-    '[data-collapse-toggle],.hamburger,.burger,.menu-toggle,.menu-icon,.nav-toggle,.navbar-toggler,' +
-    '[class*="hamburger"],[class*="burger"],[class*="menu-toggle"],[class*="nav-toggle"]'
-  function isToggle(t) {
-    try { return !!(t && t.closest && t.closest(TOGGLE_SEL)) } catch (e) { return false }
-  }
   function placingOn(e) {
     if (!mode) return false
     var t = e.target
     if (bar.contains(t) || panel.contains(t)) return false
     if (t.closest && (t.closest('.pk-pop') || t.closest('.pk-pin'))) return false
-    if (isToggle(t)) return false // let menus/accordions open and close
     return true
   }
   // Swallow the pointer/mouse sequence so links and SPA cards (which often
