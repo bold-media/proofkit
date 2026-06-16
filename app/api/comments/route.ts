@@ -27,8 +27,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const slug = String(body.page_slug || '')
   const text = String(body.body || '').trim()
-  // An attached image's stored name (validated shape; an image-only comment is OK).
-  const image = /^[a-z0-9]+\.(png|jpg|gif|webp)$/i.test(String(body.image || '')) ? String(body.image) : null
+  // An attached file's stored name (validated shape; a file-only comment is OK).
+  const image = /^[a-z2-9]+-[a-z0-9_-]*\.[a-z0-9]+$/i.test(String(body.image || '')) ? String(body.image) : null
   const page = getPage(slug)
   if (!slug || !page || (!text && !image)) {
     return NextResponse.json({ error: 'Invalid comment' }, { status: 400 })

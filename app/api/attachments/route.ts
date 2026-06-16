@@ -16,9 +16,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Image is too large (max 8 MB)' }, { status: 413 })
   }
   const buf = Buffer.from(await file.arrayBuffer())
-  const name = saveUpload(buf, file.type)
+  const name = saveUpload(buf, file.name)
   if (!name) {
-    return NextResponse.json({ error: 'Unsupported image type' }, { status: 415 })
+    return NextResponse.json({ error: 'Unsupported file type' }, { status: 415 })
   }
   return NextResponse.json({ ok: true, name, url: `/api/attachments/${name}` })
 }

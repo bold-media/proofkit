@@ -980,9 +980,13 @@
   }
 
   // ---- new comment composer ----
-  // ---- image attachments ----
-  var ATTACH_HTML = '<div class="pk-attach"><label class="pk-attach-btn">📎 Image' +
-    '<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>' +
+  // ---- file attachments ----
+  var CLIP_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>'
+  var FILE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+  function attIsImg(n) { return /\.(png|jpg|jpeg|gif|webp)$/i.test(n || '') }
+  function attName(n) { return String(n || '').replace(/^[a-z2-9]+-/i, '') }
+  var ATTACH_HTML = '<div class="pk-attach"><label class="pk-attach-btn">' + CLIP_SVG + ' Attach' +
+    '<input type="file" hidden></label>' +
     '<div class="pk-attach-preview"></div></div>'
   // Wire a popover's image picker; returns a {name} holder set once an image
   // uploads (the comment POST sends name as `image`).
@@ -1002,8 +1006,12 @@
         .then(function (j) {
           if (j && j.name) {
             state.name = j.name
-            preview.innerHTML = '<span class="pk-attach-thumb"><img src="' + API + j.url + '" alt="">' +
-              '<button class="pk-attach-rm" type="button" aria-label="Remove">×</button></span>'
+            var thumb = attIsImg(j.name)
+              ? '<img src="' + API + j.url + '" alt="">'
+              : '<span class="pk-attach-fico">' + FILE_SVG + '</span>'
+            preview.innerHTML = '<span class="pk-attach-thumb">' + thumb +
+              '<button class="pk-attach-rm" type="button" aria-label="Remove">×</button></span>' +
+              (attIsImg(j.name) ? '' : '<span class="pk-attach-name">' + escapeHtml(attName(j.name)) + '</span>')
             preview.querySelector('.pk-attach-rm').addEventListener('click', function () {
               state.name = null; preview.innerHTML = ''; input.value = ''
             })
@@ -1016,11 +1024,16 @@
     return state
   }
 
-  // Rendered image for a comment/reply that has an attachment (click to enlarge).
+  // Rendered attachment for a comment/reply: images inline (click to enlarge),
+  // other files as a labelled chip that opens/downloads.
   function imgHtml(c) {
     if (!c.image) return ''
     var u = API + '/api/attachments/' + escapeHtml(c.image)
-    return '<a class="pk-cimg" href="' + u + '" target="_blank" rel="noreferrer"><img src="' + u + '" alt="attachment"></a>'
+    if (attIsImg(c.image)) {
+      return '<a class="pk-cimg" href="' + u + '" target="_blank" rel="noreferrer"><img src="' + u + '" alt="attachment"></a>'
+    }
+    return '<a class="pk-cfile" href="' + u + '" target="_blank" rel="noreferrer">' + FILE_SVG +
+      '<span>' + escapeHtml(attName(c.image)) + '</span></a>'
   }
 
   function openComposer(xPct, yPct, clientX, clientY, anchor) {
@@ -1312,7 +1325,9 @@
           '<b>#' + num[c.id] + '</b> ' + escapeHtml(c.author) +
           '<span class="pk-pill sm" style="background:' + STATUS[s].color + '">' + STATUS[s].label + '</span></div>' +
           '<div class="pk-item-body">' + renderBody(c.body) + '</div>' +
-          (c.image ? '<img class="pk-item-thumb" src="' + API + '/api/attachments/' + escapeHtml(c.image) + '" alt="">' : '') +
+          (c.image ? (attIsImg(c.image)
+            ? '<img class="pk-item-thumb" src="' + API + '/api/attachments/' + escapeHtml(c.image) + '" alt="">'
+            : '<span class="pk-item-file">' + FILE_SVG + '<span>' + escapeHtml(attName(c.image)) + '</span></span>') : '') +
           '<div class="pk-item-meta"><span class="pk-dev-tag">' + DEVICE_LABEL[deviceOf(c)] + '</span> · ' +
           timeAgo(c.created_at) + (nr ? ' · ' + nr + (nr > 1 ? ' replies' : ' reply') : '') + '</div>' +
           '</button>'

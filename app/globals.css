@@ -400,6 +400,24 @@ h1 {
   border: 1px solid var(--border);
   display: block;
 }
+.comment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 100%;
+}
+.comment-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* @mentions in comment bodies + the reply autocomplete menu. */
 .mention {
