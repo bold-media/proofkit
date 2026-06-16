@@ -510,6 +510,35 @@
     }
     return true
   }
+  // True when something the design stacks above `elt` (an open drawer/modal) is
+  // covering the point (px,py) — so a pin there would float over the overlay and
+  // should hide. We look at the real elements under the point (ignoring our own
+  // pins/layers) and check the topmost one is unrelated to the pin's element.
+  function occludedAt(elt, px, py) {
+    if (px < 0 || py < 0 || px > window.innerWidth || py > window.innerHeight) return false
+    var stack
+    try { stack = document.elementsFromPoint(px, py) } catch (e) { return false }
+    for (var k = 0; k < stack.length; k++) {
+      var s = stack[k]
+      if (s === layer || s === fixedLayer || layer.contains(s) || fixedLayer.contains(s)) continue
+      return !(s === elt || elt.contains(s) || s.contains(elt))
+    }
+    return false
+  }
+  // For coordinate (un-anchored) pins we have no element to compare, so hide them
+  // when the point is covered by a fixed/sticky overlay (an open drawer, a sticky
+  // header) — i.e. the topmost real element there is taken out of normal flow.
+  function overlayAt(px, py) {
+    if (px < 0 || py < 0 || px > window.innerWidth || py > window.innerHeight) return false
+    var stack
+    try { stack = document.elementsFromPoint(px, py) } catch (e) { return false }
+    for (var k = 0; k < stack.length; k++) {
+      var s = stack[k]
+      if (s === layer || s === fixedLayer || layer.contains(s) || fixedLayer.contains(s)) continue
+      return !!fixedAncestor(s)
+    }
+    return false
+  }
   // The nearest ancestor that's taken out of normal scroll flow. A pin on such
   // an element must live in the fixed layer (viewport-tracked); everything else
   // goes in the document layer so it scrolls natively with zero lag.
@@ -552,6 +581,7 @@
     return a
   }
   var anchoredPins = []
+  var coordPins = []
   function moveToLayer(pin, target) { if (pin.parentNode !== target) target.appendChild(pin) }
   // Place every element-anchored pin. Normal-flow elements → document layer at
   // DOCUMENT coords (scroll-invariant, so they scroll natively with zero lag).
@@ -576,18 +606,26 @@
       // off-screen is normal scroll, and those pins stay anchored.
       var offscreenH = r && (r.right <= 8 || r.left >= vw - 8)
       if (r && !offscreenH) {
+        var px = r.left + clamp01f(a.fx) * r.width
+        var py = r.top + clamp01f(a.fy) * r.height
+        // An open overlay (drawer/modal) covering this spot hides the pin, so a
+        // comment on the page doesn't float over the menu.
+        if (occludedAt(elt, px, py)) {
+          pin.style.display = 'none'
+          continue
+        }
         pin.classList.remove('pk-collapsed')
         pin.style.display = ''
         if (fixedAncestor(elt)) {
           // Element is fixed/sticky → track the viewport (fixed layer).
           moveToLayer(pin, fixedLayer)
-          pin.style.left = (r.left + clamp01f(a.fx) * r.width) + 'px'
-          pin.style.top = (r.top + clamp01f(a.fy) * r.height) + 'px'
+          pin.style.left = px + 'px'
+          pin.style.top = py + 'px'
         } else {
           // Normal flow → document coords in the absolute layer (no scroll lag).
           moveToLayer(pin, layer)
-          pin.style.left = (r.left + sx + clamp01f(a.fx) * r.width) + 'px'
-          pin.style.top = (r.top + sy + clamp01f(a.fy) * r.height) + 'px'
+          pin.style.left = (px + sx) + 'px'
+          pin.style.top = (py + sy) + 'px'
         }
       } else if (elt) {
         // Element exists but is hidden/slid away (e.g. closed drawer) — collapse
@@ -617,6 +655,16 @@
         pin.style.top = ((c.y_pct / 100) * de.scrollHeight) + 'px'
       }
     }
+    // Coordinate (un-anchored) pins scroll natively in the document layer; we only
+    // toggle their visibility so they don't float over an open drawer/sticky bar.
+    for (var ci = 0; ci < coordPins.length; ci++) {
+      var cp = coordPins[ci]
+      var cc = cp.__c
+      if (!cc || cp === draggingPin) continue
+      var cpx = (cc.x_pct / 100) * de.scrollWidth - sx
+      var cpy = (cc.y_pct / 100) * de.scrollHeight - sy
+      cp.style.display = overlayAt(cpx, cpy) ? 'none' : ''
+    }
   }
   var draggingPin = null
   var rafPending = false
@@ -632,7 +680,7 @@
   // which fires no scroll/mutation events as it animates — so we follow the
   // element across the whole animation and let the pin land collapsed (or on it).
   function repositionSoon() {
-    if (!anchoredPins.length) return
+    if (!anchoredPins.length && !coordPins.length) return
     trackUntil = now() + 500
     if (!rafPending) { rafPending = true; requestAnimationFrame(tick) }
   }
@@ -778,6 +826,7 @@
     layer.innerHTML = ''
     fixedLayer.innerHTML = ''
     anchoredPins = []
+    coordPins = []
     tops().forEach(function (c, i) {
       var s = statusOf(c)
       // Only show pins placed in the device size currently being viewed.
@@ -798,6 +847,7 @@
         pin.title += ' — drag to move, click to open'
         attachPin(pin, c)
         layer.appendChild(pin)
+        coordPins.push(pin)
       }
     })
     positionAnchored()
