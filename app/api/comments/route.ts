@@ -64,6 +64,7 @@ export async function POST(req: Request) {
     device,
     client_id: client ? client.id : null,
     anchor,
+    is_owner: owner,
   })
   emitCommentChange(slug)
 

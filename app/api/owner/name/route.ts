@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
-import { setOwnerName } from '@/lib/data'
+import { ownerCommentPages, setOwnerName } from '@/lib/data'
+import { emitCommentChange } from '@/lib/events'
 import { isOwner } from '@/lib/owner'
 
 export const runtime = 'nodejs'
@@ -11,6 +12,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const name = String(body.name || '').trim()
   if (!name) return NextResponse.json({ error: 'Enter a name' }, { status: 400 })
+  // Capture affected pages BEFORE the rename clears nothing (is_owner stays set),
+  // then re-label and ping each page's live stream so open views update.
+  const pages = ownerCommentPages()
   setOwnerName(name)
+  for (const slug of pages) emitCommentChange(slug)
   return NextResponse.json({ ok: true, name: name.slice(0, 80) })
 }

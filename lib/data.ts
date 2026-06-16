@@ -192,12 +192,13 @@ export function createComment(c: {
   device?: string
   client_id?: string | null
   anchor?: string | null
+  is_owner?: boolean
 }): Comment {
   const id = makeId(10)
   const now = new Date().toISOString()
   db.prepare(
-    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?)",
-  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, now)
+    "INSERT INTO comments (id, page_slug, x_pct, y_pct, author, body, resolved, status, parent_id, device, client_id, anchor, is_owner, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, ?, ?, ?, ?)",
+  ).run(id, c.page_slug, c.x_pct, c.y_pct, c.author, c.body, c.parent_id || null, c.device || 'desktop', c.client_id || null, c.anchor || null, c.is_owner ? 1 : 0, now)
   return plain<Comment>(db.prepare('SELECT * FROM comments WHERE id = ?').get(id))
 }
 
@@ -247,7 +248,18 @@ export function getOwnerName(): string {
   return getSetting('owner_name') || 'Owner'
 }
 export function setOwnerName(name: string): void {
-  setSetting('owner_name', name.slice(0, 80))
+  const n = name.slice(0, 80)
+  setSetting('owner_name', n)
+  // Re-label the owner's existing comments/replies so the new name shows there too.
+  db.prepare('UPDATE comments SET author = ? WHERE is_owner = 1').run(n)
+}
+
+// Pages that carry an owner comment — so a rename can ping their live streams.
+export function ownerCommentPages(): string[] {
+  const rows = db
+    .prepare('SELECT DISTINCT page_slug FROM comments WHERE is_owner = 1')
+    .all() as { page_slug: string }[]
+  return rows.map((r) => r.page_slug)
 }
 
 // ---- Password hashing (scrypt) ----

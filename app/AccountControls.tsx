@@ -97,9 +97,13 @@ export default function AccountControls({ name: initialName = 'Owner' }: { name?
             zIndex: 100,
             padding: 20,
           }}
-          onClick={() => !nameBusy && setNameOpen(false)}
+          onMouseDown={(e) => {
+            // Only close on a press that STARTS on the backdrop — otherwise
+            // selecting text in the input and releasing here would close it.
+            if (e.target === e.currentTarget && !nameBusy) setNameOpen(false)
+          }}
         >
-          <div className="card" style={{ maxWidth: 380, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+          <div className="card" style={{ maxWidth: 380, width: '100%' }} onMouseDown={(e) => e.stopPropagation()}>
             <h1 style={{ fontSize: 18, marginTop: 0 }}>Your display name</h1>
             <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
               Shown on the comments and replies you leave (instead of “Owner”).
@@ -107,7 +111,7 @@ export default function AccountControls({ name: initialName = 'Owner' }: { name?
             <input
               className="input"
               autoFocus
-              placeholder="e.g. Daria"
+              placeholder="e.g. Alex Morgan"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
@@ -143,9 +147,11 @@ export default function AccountControls({ name: initialName = 'Owner' }: { name?
             zIndex: 100,
             padding: 20,
           }}
-          onClick={() => !busy && setOpen(false)}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !busy) setOpen(false)
+          }}
         >
-          <div className="card" style={{ maxWidth: 380, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+          <div className="card" style={{ maxWidth: 380, width: '100%' }} onMouseDown={(e) => e.stopPropagation()}>
             <h1 style={{ fontSize: 18, marginTop: 0 }}>Change your password</h1>
             <PasswordInput value={pw} onChange={setPw} placeholder="New password" autoFocus onEnter={change} />
             {msg && (
