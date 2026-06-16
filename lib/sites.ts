@@ -95,6 +95,15 @@ export function appendVersionFiles(slug: string, dir: string, files: { path: str
     fs.writeFileSync(dest, f.bytes)
   }
 }
+// Remove a version's files. A subdir version is deleted outright; the v1 root
+// version has its files cleared but the sibling _vN dirs are preserved.
+export function removeVersionFiles(slug: string, dir: string): void {
+  if (dir) {
+    fs.rmSync(versionBase(slug, dir), { recursive: true, force: true })
+  } else {
+    clearVersionDir(slug, '')
+  }
+}
 export function listVersionFiles(slug: string, dir: string): string[] {
   const base = versionBase(slug, dir)
   const out: string[] = []

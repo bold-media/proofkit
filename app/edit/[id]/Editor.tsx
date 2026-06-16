@@ -268,6 +268,20 @@ export default function Editor({
     router.refresh()
   }
 
+  async function removeVersion(versionId: string) {
+    if (!confirm('Delete this version? Its files are removed (comments are kept). This can’t be undone.')) return
+    setPublishing(true)
+    await fetch(`/api/pages/${page.slug}/version`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version_id: versionId }),
+    })
+    setPublishing(false)
+    setViewVersion(null) // the live version may have changed; follow it
+    setPreviewNonce((n) => n + 1)
+    router.refresh()
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(publicUrl)
     setCopied(true)
@@ -621,6 +635,16 @@ export default function Editor({
             {(viewVersion ?? currentVersion) !== currentVersion && (
               <button className="btn btn-sm" disabled={publishing} onClick={() => publishVersion(viewVersion!)}>
                 {publishing ? '…' : 'Make this version live'}
+              </button>
+            )}
+            {versions.length > 1 && (viewVersion ?? currentVersion) && (
+              <button
+                className="btn btn-sm ghost"
+                disabled={publishing}
+                style={{ color: 'var(--danger)' }}
+                onClick={() => removeVersion((viewVersion ?? currentVersion)!)}
+              >
+                Delete version
               </button>
             )}
           </div>

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 
 import db, { makeId } from './db'
-import { removeSite } from './sites'
+import { removeSite, removeVersionFiles } from './sites'
 
 export type Page = {
   slug: string
@@ -348,6 +348,33 @@ export function setVersionHtml(id: string, html: string): void {
 
 export function setCurrentVersion(slug: string, id: string): void {
   db.prepare('UPDATE pages SET current_version = ? WHERE slug = ?').run(id, slug)
+}
+
+// Delete a version (and its files). Refuses to remove the last one. If the live
+// version is deleted, the latest remaining version becomes live.
+export function deleteVersion(id: string): boolean {
+  const v = getVersion(id)
+  if (!v) return false
+  const all = listVersions(v.page_slug)
+  if (all.length <= 1) return false // keep at least one version
+  removeVersionFiles(v.page_slug, v.dir)
+  db.prepare('DELETE FROM versions WHERE id = ?').run(id)
+  // Drop dangling references on comments.
+  db.prepare('UPDATE comments SET version_id = NULL WHERE version_id = ?').run(id)
+  db.prepare('UPDATE comments SET fixed_in = NULL WHERE fixed_in = ?').run(id)
+  // If this was the live version, fall back to the latest remaining one.
+  const page = getPage(v.page_slug)
+  if (page?.current_version === id) {
+    const latest = db
+      .prepare('SELECT * FROM versions WHERE page_slug = ? ORDER BY n DESC LIMIT 1')
+      .all(v.page_slug)
+      .map((r) => plain<Version>(r))[0]
+    if (latest) {
+      db.prepare('UPDATE pages SET current_version = ? WHERE slug = ?').run(latest.id, v.page_slug)
+      if (latest.entry) db.prepare('UPDATE pages SET entry = ? WHERE slug = ?').run(latest.entry, v.page_slug)
+    }
+  }
+  return true
 }
 
 // ---- approvals (client sign-off) ----
