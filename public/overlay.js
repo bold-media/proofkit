@@ -119,6 +119,9 @@
   // The owner (logged in) gets extra controls: changing a comment's status and
   // deleting. The server still enforces this — the flag only gates the UI.
   var OWNER = !!(me && me.getAttribute('data-proof-owner'))
+  // The viewer's known name (owner / logged-in client / password-gate name), used
+  // to attribute their comments and to power the "Tagged me" filter.
+  var VIEWER_NAME = (me && me.getAttribute('data-proof-name')) || ''
 
   var STATUS = {
     open: { label: 'Open', color: '#e5484d' },
@@ -182,6 +185,25 @@
     }
     return out
   }
+  // Whether a body tags a specific person by name (word-bounded "@Name").
+  function mentionsName(text, name) {
+    if (!name) return false
+    var s = String(text), nl = name.toLowerCase()
+    for (var i = s.indexOf('@'); i !== -1; i = s.indexOf('@', i + 1)) {
+      if (s.substr(i + 1, name.length).toLowerCase() === nl && !/[A-Za-z0-9_]/.test(s.charAt(i + 1 + name.length))) {
+        return true
+      }
+    }
+    return false
+  }
+  // A top-level comment "tags the viewer" if it — or any of its replies — @mentions them.
+  function taggedViewer(c) {
+    if (mentionsName(c.body, VIEWER_NAME)) return true
+    var rs = repliesOf(c.id)
+    for (var i = 0; i < rs.length; i++) if (mentionsName(rs[i].body, VIEWER_NAME)) return true
+    return false
+  }
+
   // The "@" the caret is currently typing, if any (allows spaces for full names).
   function mentionQuery(input) {
     var pos = input.selectionStart
@@ -281,6 +303,7 @@
   var panelFilter = 'all'
   var panelDevice = 'all' // which device's comments the panel lists
   var panelName = '' // free-text author filter for the panel list
+  var panelTagged = false // show only comments that @mention the current viewer
   var showResolved = false // resolved pins are hidden on the design until toggled on
   var currentId = null // the comment whose thread is open (for prev/next stepping)
   var currentDevice = 'desktop' // which device view this frame is showing
@@ -551,7 +574,7 @@
   // ---- new comment composer ----
   function openComposer(xPct, yPct, clientX, clientY) {
     closePopovers()
-    var savedName = localStorage.getItem(NAME_KEY) || ''
+    var savedName = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
     var pop = el('div', 'pk-pop')
     pop.innerHTML =
       (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
@@ -627,7 +650,7 @@
       })
       h += '</div>'
     }
-    var savedName = localStorage.getItem(NAME_KEY) || ''
+    var savedName = VIEWER_NAME || localStorage.getItem(NAME_KEY) || ''
     h += '<div class="pk-replybox">' +
       (savedName ? '' : '<input class="pk-name" placeholder="Your name" />') +
       '<textarea class="pk-text" placeholder="Reply…"></textarea>' +
@@ -801,6 +824,14 @@
     })
     h += '</div>'
 
+    // "Tagged me": a viewer with a known name can narrow to comments that @mention
+    // them (or whose replies do). Hidden for anonymous visitors who have no name.
+    if (VIEWER_NAME) {
+      var taggedCount = inDevice.filter(taggedViewer).length
+      h += '<button class="pk-tagged-toggle' + (panelTagged ? ' on' : '') + '" data-tagged="1">' +
+        '<span class="pk-at">@</span> Tagged me <span class="pk-tc">' + taggedCount + '</span></button>'
+    }
+
     // Resolved pins are hidden on the design by default; let the viewer show them.
     if (counts.resolved > 0) {
       h += '<label class="pk-resolved-toggle"><input type="checkbox"' + (showResolved ? ' checked' : '') +
@@ -812,10 +843,11 @@
       return (statusOf(a) === 'resolved' ? 1 : 0) - (statusOf(b) === 'resolved' ? 1 : 0)
     })
     if (panelFilter !== 'all') list = list.filter(function (c) { return statusOf(c) === panelFilter })
+    if (panelTagged) list = list.filter(taggedViewer)
 
     h += '<div class="pk-panel-list">'
     if (!list.length) {
-      h += '<div class="pk-empty">No comments with this status.</div>'
+      h += '<div class="pk-empty">' + (panelTagged ? 'No comments tag you here yet.' : 'No comments with this status.') + '</div>'
     } else {
       list.forEach(function (c) {
         var s = statusOf(c)
@@ -852,6 +884,8 @@
 
     var rt = panel.querySelector('.pk-resolved-toggle input')
     if (rt) rt.addEventListener('change', function () { showResolved = rt.checked; render() })
+    var tagBtn = panel.querySelector('.pk-tagged-toggle')
+    if (tagBtn) tagBtn.addEventListener('click', function () { panelTagged = !panelTagged; renderPanel() })
     panel.querySelectorAll('.pk-dtab').forEach(function (b) {
       b.addEventListener('click', function () {
         var d = b.getAttribute('data-d')

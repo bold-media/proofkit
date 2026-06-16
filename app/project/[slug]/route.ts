@@ -24,6 +24,7 @@ ${loginBad ? '<div class="err">Wrong email or password.</div>' : ''}
 <button type="submit">Log in</button></form>`
   const pwForm = `<form method="post" action="/api/project/${slug}/unlock">
 <input type="password" name="password" placeholder="Access password" autofocus />
+<input type="text" name="name" placeholder="Your name (optional)" autocomplete="name" style="margin-top:8px" />
 ${bad ? '<div class="err">Wrong password — try again.</div>' : ''}
 <button type="submit">View design</button></form>`
 
@@ -184,10 +185,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const baseTag = needsBase ? `<base href="/project/${slug}/">` : ''
   // Tell the overlay whether the viewer is the owner, so it can show owner-only
   // controls (status changes, delete). The API still enforces this server-side.
-  const ownerAttr = (await isOwner()) ? ' data-proof-owner="1"' : ''
+  const ownerAttr = owner ? ' data-proof-owner="1"' : ''
   // In framed mode the overlay renders its chrome into the host (wrapper) page.
   const framedAttr = new URL(req.url).searchParams.get('framed') === '1' ? ' data-proof-framed="1"' : ''
-  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}></script>`
+  // The viewer's known name (owner, logged-in client, or the name a password
+  // visitor gave at the gate) so the overlay attributes their comments and can
+  // offer a "tagged me" filter without them re-typing it.
+  const cookieName = (await cookies()).get(`pk_name_${slug}`)?.value || ''
+  const viewerName = owner ? 'Owner' : client?.name || cookieName
+  const nameAttr = viewerName ? ` data-proof-name="${esc(viewerName)}"` : ''
+  const overlay = `<link rel="stylesheet" href="/overlay.css" data-proof-css="1"><script src="/overlay.js" data-proof-slug="${slug}"${ownerAttr}${framedAttr}${nameAttr}></script>`
 
   if (baseTag) {
     html = /<head[^>]*>/i.test(html)

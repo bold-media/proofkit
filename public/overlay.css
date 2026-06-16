@@ -79,6 +79,12 @@
 .pk-pf.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
 .pk-pf span{opacity:.6;margin-left:2px}
 .pk-pf.on span{opacity:.85}
+.pk-tagged-toggle{display:inline-flex;align-items:center;gap:6px;margin:8px 12px 0;border:1px solid #e6e8ec;background:#fff;color:#3a3f45;border-radius:999px;padding:5px 11px;font:600 12px sans-serif;cursor:pointer}
+.pk-tagged-toggle .pk-at{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#eef2ff;color:#4f46e5;font-weight:700;font-size:11px}
+.pk-tagged-toggle .pk-tc{opacity:.6}
+.pk-tagged-toggle.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
+.pk-tagged-toggle.on .pk-at{background:rgba(255,255,255,.25);color:#fff}
+.pk-tagged-toggle.on .pk-tc{opacity:.85}
 .pk-panel-list{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
 .pk-empty{padding:24px 16px;color:#6b7280;font-size:13px;line-height:1.5}
 .pk-item{text-align:left;width:100%;background:#fff;border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;cursor:pointer;font-family:sans-serif;display:block}

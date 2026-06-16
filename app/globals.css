@@ -300,6 +300,9 @@ h1 {
 
 .access-badge {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
@@ -307,6 +310,9 @@ h1 {
   background: var(--bg);
   color: var(--muted);
   white-space: nowrap;
+}
+.access-badge svg {
+  opacity: 0.85;
 }
 .access-badge.private {
   background: var(--accent-soft);

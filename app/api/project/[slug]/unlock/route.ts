@@ -18,18 +18,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const { slug } = await params
   const form = await req.formData()
   const password = String(form.get('password') || '')
+  const name = String(form.get('name') || '').trim().slice(0, 80)
 
   if (!verifyPageViewPassword(slug, password)) {
     return redirect(`/project/${slug}?bad=1`)
   }
 
   const res = redirect(`/project/${slug}`)
-  res.cookies.set(`pk_unlock_${slug}`, pageUnlockToken(slug) || '', {
+  const cookieOpts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
-  })
+  }
+  res.cookies.set(`pk_unlock_${slug}`, pageUnlockToken(slug) || '', cookieOpts)
+  // Remember the name they gave at the gate so their comments are attributed to
+  // it (instead of "Guest") without re-typing in the composer each time.
+  if (name) res.cookies.set(`pk_name_${slug}`, name, cookieOpts)
   return res
 }
